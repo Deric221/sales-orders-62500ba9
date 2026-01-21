@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Package, Truck, Plus, Check } from "lucide-react";
+import { Package, Truck, Plus, Check, Upload, FileText, Eye, Download } from "lucide-react";
 import { format } from "date-fns";
 
 interface DeliveryManagementProps {
@@ -36,6 +36,8 @@ const DeliveryManagement = ({ waybillId, waybillNumber }: DeliveryManagementProp
   const [deliveryNotes, setDeliveryNotes] = useState("");
   const [deliveryDate, setDeliveryDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [itemDeliveries, setItemDeliveries] = useState<Record<string, number>>({});
+  const [signedWaybillFile, setSignedWaybillFile] = useState<File | null>(null);
+  const [isUploadingSignedWaybill, setIsUploadingSignedWaybill] = useState(false);
 
   // Fetch waybill items
   const { data: waybillItems = [] } = useQuery({
@@ -140,6 +142,71 @@ const DeliveryManagement = ({ waybillId, waybillNumber }: DeliveryManagementProp
       });
     },
   });
+
+  const uploadSignedWaybillMutation = useMutation({
+    mutationFn: async () => {
+      if (!signedWaybillFile || !user) throw new Error("Missing required data");
+
+      const filePath = `signed-waybills/${user.id}/${Date.now()}_${signedWaybillFile.name}`;
+      const { error: uploadError } = await supabase.storage
+        .from("documents")
+        .upload(filePath, signedWaybillFile);
+
+      if (uploadError) throw uploadError;
+
+      const { error: updateError } = await supabase
+        .from("waybills")
+        .update({
+          signed_waybill_path: filePath,
+          signed_waybill_name: signedWaybillFile.name,
+          signed_at: new Date().toISOString(),
+          signed_by: user.id,
+        })
+        .eq("id", waybillId);
+
+      if (updateError) throw updateError;
+    },
+    onSuccess: () => {
+      toast({
+        title: "Success",
+        description: "Signed waybill uploaded successfully",
+      });
+      setSignedWaybillFile(null);
+      queryClient.invalidateQueries({ queryKey: ["waybill-detail", waybillId] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const viewFile = async (filePath: string) => {
+    const { data, error } = await supabase.storage.from("documents").createSignedUrl(filePath, 60);
+    if (error) {
+      toast({ variant: "destructive", title: "View failed", description: error.message });
+      return;
+    }
+    if (data?.signedUrl) {
+      window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
+    }
+  };
+
+  const downloadFile = async (filePath: string, fileName: string) => {
+    const { data, error } = await supabase.storage.from("documents").download(filePath);
+    if (error) {
+      toast({ variant: "destructive", title: "Download failed", description: error.message });
+      return;
+    }
+    const url = URL.createObjectURL(data);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = fileName;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   const getDeliveryStatusBadge = (status: string | null) => {
     switch (status) {
@@ -325,6 +392,65 @@ const DeliveryManagement = ({ waybillId, waybillNumber }: DeliveryManagementProp
           </table>
         </div>
       )}
+
+      {/* Signed Waybill Section */}
+      <div className="space-y-3 p-4 border rounded-lg bg-muted/30">
+        <Label className="text-sm font-medium flex items-center gap-2">
+          <FileText className="h-4 w-4" />
+          Signed Waybill (Customer Acknowledgment)
+        </Label>
+        
+        {waybill?.signed_waybill_path ? (
+          <div className="flex items-center justify-between p-3 bg-background rounded border">
+            <div className="flex items-center gap-2">
+              <Check className="h-4 w-4 text-primary" />
+              <span className="text-sm">{waybill.signed_waybill_name}</span>
+              {waybill.signed_at && (
+                <span className="text-xs text-muted-foreground">
+                  (Uploaded: {format(new Date(waybill.signed_at), "PPP")})
+                </span>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => viewFile(waybill.signed_waybill_path!)}
+              >
+                <Eye className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => downloadFile(waybill.signed_waybill_path!, waybill.signed_waybill_name || "signed-waybill.pdf")}
+              >
+                <Download className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <div className="text-sm text-muted-foreground">
+              Upload the signed waybill from the customer to acknowledge delivery.
+            </div>
+            <div className="flex gap-2">
+              <Input
+                type="file"
+                accept=".pdf,.jpg,.jpeg,.png"
+                onChange={(e) => setSignedWaybillFile(e.target.files?.[0] || null)}
+                className="flex-1"
+              />
+              <Button
+                onClick={() => uploadSignedWaybillMutation.mutate()}
+                disabled={!signedWaybillFile || uploadSignedWaybillMutation.isPending}
+              >
+                <Upload className="h-4 w-4 mr-2" />
+                {uploadSignedWaybillMutation.isPending ? "Uploading..." : "Upload"}
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Delivery History */}
       {deliveryRecords.length > 0 && (
