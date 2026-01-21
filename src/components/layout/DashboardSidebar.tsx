@@ -114,9 +114,7 @@ const DashboardSidebar = ({ userRole }: DashboardSidebarProps) => {
     ];
 
     const salesItems = [
-      { title: "Upload Quote", icon: Upload, path: "/dashboard" },
-      { title: "Upload Customer PO", icon: FileText, path: "/dashboard" },
-      { title: "Upload Distributor Quote", icon: FileCheck, path: "/dashboard" },
+      { title: "Quotes & Documents", icon: FileText, path: "/sales-quotes" },
     ];
 
     const ordersItems = [

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Download, Search, FileText } from "lucide-react";
+import { ArrowLeft, Download, Search, FileText, Eye } from "lucide-react";
 
 const CompletedProjects = () => {
   const navigate = useNavigate();
@@ -56,6 +56,22 @@ const CompletedProjects = () => {
       toast({ title: "File downloaded successfully" });
     } catch (error: any) {
       toast({ variant: "destructive", title: "Error downloading file", description: error.message });
+    }
+  };
+
+  const viewFile = async (filePath: string) => {
+    try {
+      const { data, error } = await supabase.storage
+        .from("documents")
+        .createSignedUrl(filePath, 60);
+
+      if (error) throw error;
+
+      if (data?.signedUrl) {
+        window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
+      }
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Error viewing file", description: error.message });
     }
   };
 
@@ -114,13 +130,22 @@ const CompletedProjects = () => {
                     </div>
                   </div>
                   {project.documentation_path && (
-                    <Button
-                      variant="outline"
-                      onClick={() => downloadFile(project.documentation_path!, `${project.project_number}_documentation.pdf`)}
-                    >
-                      <Download className="h-4 w-4 mr-2" />
-                      Download Documentation
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        onClick={() => viewFile(project.documentation_path!)}
+                      >
+                        <Eye className="h-4 w-4 mr-2" />
+                        View
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => downloadFile(project.documentation_path!, `${project.project_number}_documentation.pdf`)}
+                      >
+                        <Download className="h-4 w-4 mr-2" />
+                        Download
+                      </Button>
+                    </div>
                   )}
                 </div>
               </div>

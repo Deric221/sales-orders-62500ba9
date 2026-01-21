@@ -898,6 +898,10 @@ export type Database = {
           id: string
           product_details: string | null
           serial_numbers: string[] | null
+          signed_at: string | null
+          signed_by: string | null
+          signed_waybill_name: string | null
+          signed_waybill_path: string | null
           total_items_delivered: number | null
           total_items_ordered: number | null
           updated_at: string | null
@@ -913,6 +917,10 @@ export type Database = {
           id?: string
           product_details?: string | null
           serial_numbers?: string[] | null
+          signed_at?: string | null
+          signed_by?: string | null
+          signed_waybill_name?: string | null
+          signed_waybill_path?: string | null
           total_items_delivered?: number | null
           total_items_ordered?: number | null
           updated_at?: string | null
@@ -928,6 +936,10 @@ export type Database = {
           id?: string
           product_details?: string | null
           serial_numbers?: string[] | null
+          signed_at?: string | null
+          signed_by?: string | null
+          signed_waybill_name?: string | null
+          signed_waybill_path?: string | null
           total_items_delivered?: number | null
           total_items_ordered?: number | null
           updated_at?: string | null
