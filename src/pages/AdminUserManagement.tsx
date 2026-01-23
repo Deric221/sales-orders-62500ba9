@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { UserPlus, KeyRound, Trash2 } from "lucide-react";
 import DashboardLayout from "@/components/layout/DashboardLayout";
@@ -18,7 +19,7 @@ const AdminUserManagement = () => {
   
   const [selectedUserId, setSelectedUserId] = useState("");
   const [selectedEmployeeType, setSelectedEmployeeType] = useState<"employee" | "manager">("employee");
-  const [selectedDepartmentId, setSelectedDepartmentId] = useState<string | null>(null);
+  const [selectedDepartmentIds, setSelectedDepartmentIds] = useState<string[]>([]);
   const [selectedDepartmentRole, setSelectedDepartmentRole] = useState<"admin" | "sales" | "orders" | "finance" | "projects" | null>(null);
   const [selectedManagerialRole, setSelectedManagerialRole] = useState<"director_finance" | "director_business" | "director_cx" | "director_of_technology" | "head_compliance" | null>(null);
   const [resetPasswordDialogOpen, setResetPasswordDialogOpen] = useState(false);
@@ -27,7 +28,7 @@ const AdminUserManagement = () => {
   const [changeRoleUserId, setChangeRoleUserId] = useState("");
   const [changeRoleDialogOpen, setChangeRoleDialogOpen] = useState(false);
   const [newEmployeeTypeForUser, setNewEmployeeTypeForUser] = useState<"employee" | "manager">("employee");
-  const [newDepartmentIdForUser, setNewDepartmentIdForUser] = useState<string | null>(null);
+  const [newDepartmentIdsForUser, setNewDepartmentIdsForUser] = useState<string[]>([]);
   const [newDepartmentRoleForUser, setNewDepartmentRoleForUser] = useState<"admin" | "sales" | "orders" | "finance" | "projects" | null>(null);
   const [newManagerialRoleForUser, setNewManagerialRoleForUser] = useState<"director_finance" | "director_business" | "director_cx" | "director_of_technology" | "head_compliance" | null>(null);
   const [addUserDialogOpen, setAddUserDialogOpen] = useState(false);
@@ -72,14 +73,22 @@ const AdminUserManagement = () => {
 
       if (assignmentsError) throw assignmentsError;
 
+      const { data: deptAssignments, error: deptAssignError } = await supabase
+        .from("user_department_assignments")
+        .select("*, departments(name)");
+
+      if (deptAssignError) console.error("Error fetching department assignments:", deptAssignError);
+
       const combinedData = profiles?.map(profile => {
         const role = userRoles?.find(r => r.user_id === profile.id);
         const managerAssignment = managerAssignments?.find(m => m.user_id === profile.id);
+        const userDeptAssignments = deptAssignments?.filter(d => d.user_id === profile.id) || [];
         
         return {
           ...profile,
           user_roles: role,
-          manager_assignments: managerAssignment
+          manager_assignments: managerAssignment,
+          department_assignments: userDeptAssignments
         };
       });
 
@@ -97,6 +106,18 @@ const AdminUserManagement = () => {
     );
   });
 
+  const handleDepartmentToggle = (deptId: string, isAssign: boolean) => {
+    if (isAssign) {
+      setSelectedDepartmentIds(prev => 
+        prev.includes(deptId) ? prev.filter(id => id !== deptId) : [...prev, deptId]
+      );
+    } else {
+      setNewDepartmentIdsForUser(prev => 
+        prev.includes(deptId) ? prev.filter(id => id !== deptId) : [...prev, deptId]
+      );
+    }
+  };
+
   const assignRoleMutation = useMutation({
     mutationFn: async () => {
       if (!selectedUserId) throw new Error("Please select a user");
@@ -108,7 +129,7 @@ const AdminUserManagement = () => {
         body: {
           userId: selectedUserId,
           employeeType: selectedEmployeeType,
-          departmentId: selectedDepartmentId,
+          departmentIds: selectedDepartmentIds,
           departmentRole: selectedDepartmentRole,
           managerialRole: selectedManagerialRole,
         },
@@ -122,7 +143,7 @@ const AdminUserManagement = () => {
       queryClient.invalidateQueries({ queryKey: ["all-users"] });
       setSelectedUserId("");
       setSelectedEmployeeType("employee");
-      setSelectedDepartmentId(null);
+      setSelectedDepartmentIds([]);
       setSelectedDepartmentRole(null);
       setSelectedManagerialRole(null);
     },
@@ -224,7 +245,7 @@ const AdminUserManagement = () => {
         body: {
           userId: changeRoleUserId,
           employeeType: newEmployeeTypeForUser,
-          departmentId: newDepartmentIdForUser,
+          departmentIds: newDepartmentIdsForUser,
           departmentRole: newDepartmentRoleForUser,
           managerialRole: newManagerialRoleForUser,
         },
@@ -243,6 +264,32 @@ const AdminUserManagement = () => {
       toast({ variant: "destructive", title: "Error changing role", description: error.message });
     },
   });
+
+  const DepartmentCheckboxList = ({ 
+    selectedIds, 
+    isAssign 
+  }: { 
+    selectedIds: string[]; 
+    isAssign: boolean;
+  }) => (
+    <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto border rounded-md p-3">
+      {departments?.map((dept) => (
+        <div key={dept.id} className="flex items-center space-x-2">
+          <Checkbox
+            id={`${isAssign ? 'assign' : 'change'}-dept-${dept.id}`}
+            checked={selectedIds.includes(dept.id)}
+            onCheckedChange={() => handleDepartmentToggle(dept.id, isAssign)}
+          />
+          <label 
+            htmlFor={`${isAssign ? 'assign' : 'change'}-dept-${dept.id}`}
+            className="text-sm cursor-pointer"
+          >
+            {dept.name}
+          </label>
+        </div>
+      ))}
+    </div>
+  );
 
   return (
     <DashboardLayout title="User Management">
@@ -263,7 +310,7 @@ const AdminUserManagement = () => {
         <Card>
           <CardHeader>
             <CardTitle>Assign User Role</CardTitle>
-            <CardDescription>Assign roles to users in the system</CardDescription>
+            <CardDescription>Assign roles to users in the system. Users can belong to multiple departments.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
@@ -278,10 +325,11 @@ const AdminUserManagement = () => {
                 {users?.map((user) => {
                   const userRole = user.user_roles;
                   const managerAssignment = user.manager_assignments;
+                  const deptCount = user.department_assignments?.length || 0;
                   return (
                     <option key={user.id} value={user.id}>
                       {user.email} ({userRole?.employee_type || 'employee'}
-                      {userRole?.departments?.name ? ` - ${userRole.departments.name}` : ''}
+                      {deptCount > 0 ? ` - ${deptCount} dept(s)` : ''}
                       {userRole?.department_role ? ` - ${userRole.department_role}` : ''}
                       {managerAssignment?.role ? ` - ${managerAssignment.role.replace(/_/g, ' ')}` : ''})
                     </option>
@@ -303,22 +351,6 @@ const AdminUserManagement = () => {
                 </select>
               </div>
               <div className="space-y-2">
-                <Label>Department</Label>
-                <select
-                  className="w-full h-10 px-3 py-2 border border-input bg-background rounded-md"
-                  value={selectedDepartmentId || ""}
-                  onChange={(e) => setSelectedDepartmentId(e.target.value || null)}
-                >
-                  <option value="">No Department</option>
-                  {departments?.map((dept) => (
-                    <option key={dept.id} value={dept.id}>{dept.name}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
                 <Label>Department Role</Label>
                 <select
                   className="w-full h-10 px-3 py-2 border border-input bg-background rounded-md"
@@ -333,22 +365,33 @@ const AdminUserManagement = () => {
                   <option value="projects">Projects</option>
                 </select>
               </div>
-              <div className="space-y-2">
-                <Label>Managerial Role (Managers Only)</Label>
-                <select
-                  className="w-full h-10 px-3 py-2 border border-input bg-background rounded-md"
-                  value={selectedManagerialRole || ""}
-                  onChange={(e) => setSelectedManagerialRole(e.target.value ? e.target.value as any : null)}
-                  disabled={selectedEmployeeType !== "manager"}
-                >
-                  <option value="">No Managerial Role</option>
-                  <option value="director_finance">Director of Finance</option>
-                  <option value="director_business">Director of Business</option>
-                  <option value="director_cx">Director of CX</option>
-                  <option value="director_of_technology">Director of Technology</option>
-                  <option value="head_compliance">Head of Compliance</option>
-                </select>
-              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Departments (select multiple)</Label>
+              <DepartmentCheckboxList selectedIds={selectedDepartmentIds} isAssign={true} />
+              {selectedDepartmentIds.length > 0 && (
+                <p className="text-sm text-muted-foreground">
+                  Selected: {selectedDepartmentIds.length} department(s)
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label>Managerial Role (Managers Only)</Label>
+              <select
+                className="w-full h-10 px-3 py-2 border border-input bg-background rounded-md"
+                value={selectedManagerialRole || ""}
+                onChange={(e) => setSelectedManagerialRole(e.target.value ? e.target.value as any : null)}
+                disabled={selectedEmployeeType !== "manager"}
+              >
+                <option value="">No Managerial Role</option>
+                <option value="director_finance">Director of Finance</option>
+                <option value="director_business">Director of Business</option>
+                <option value="director_cx">Director of CX</option>
+                <option value="director_of_technology">Director of Technology</option>
+                <option value="head_compliance">Head of Compliance</option>
+              </select>
             </div>
 
             <Button
@@ -381,7 +424,7 @@ const AdminUserManagement = () => {
                   <div>
                     <div className="font-medium">{user.full_name || user.email}</div>
                     <div className="text-sm text-muted-foreground">{user.email}</div>
-                    <div className="flex gap-2 mt-1">
+                    <div className="flex flex-wrap gap-2 mt-1">
                       <Badge variant="outline">{user.user_roles?.employee_type || "employee"}</Badge>
                       {user.user_roles?.department_role && (
                         <Badge>{user.user_roles.department_role}</Badge>
@@ -389,6 +432,11 @@ const AdminUserManagement = () => {
                       {user.manager_assignments?.role && (
                         <Badge variant="secondary">{user.manager_assignments.role.replace(/_/g, " ")}</Badge>
                       )}
+                      {user.department_assignments?.map((da: any) => (
+                        <Badge key={da.id} variant="outline" className="bg-muted">
+                          {da.departments?.name}
+                        </Badge>
+                      ))}
                     </div>
                   </div>
                   <div className="flex gap-2">
@@ -398,7 +446,8 @@ const AdminUserManagement = () => {
                       onClick={() => {
                         setChangeRoleUserId(user.id);
                         setNewEmployeeTypeForUser(user.user_roles?.employee_type || "employee");
-                        setNewDepartmentIdForUser(user.user_roles?.department_id || null);
+                        const deptIds = user.department_assignments?.map((da: any) => da.department_id) || [];
+                        setNewDepartmentIdsForUser(deptIds.length > 0 ? deptIds : (user.user_roles?.department_id ? [user.user_roles.department_id] : []));
                         setNewDepartmentRoleForUser(user.user_roles?.department_role || null);
                         setNewManagerialRoleForUser(user.manager_assignments?.role || null);
                         setChangeRoleDialogOpen(true);
@@ -503,7 +552,7 @@ const AdminUserManagement = () => {
 
         {/* Change Role Dialog */}
         <Dialog open={changeRoleDialogOpen} onOpenChange={setChangeRoleDialogOpen}>
-          <DialogContent>
+          <DialogContent className="max-w-lg">
             <DialogHeader>
               <DialogTitle>Change User Role</DialogTitle>
               <DialogDescription>Update the role for this user</DialogDescription>
@@ -521,17 +570,13 @@ const AdminUserManagement = () => {
                 </select>
               </div>
               <div className="space-y-2">
-                <Label>Department</Label>
-                <select
-                  className="w-full h-10 px-3 py-2 border border-input bg-background rounded-md"
-                  value={newDepartmentIdForUser || ""}
-                  onChange={(e) => setNewDepartmentIdForUser(e.target.value || null)}
-                >
-                  <option value="">No Department</option>
-                  {departments?.map((dept) => (
-                    <option key={dept.id} value={dept.id}>{dept.name}</option>
-                  ))}
-                </select>
+                <Label>Departments (select multiple)</Label>
+                <DepartmentCheckboxList selectedIds={newDepartmentIdsForUser} isAssign={false} />
+                {newDepartmentIdsForUser.length > 0 && (
+                  <p className="text-sm text-muted-foreground">
+                    Selected: {newDepartmentIdsForUser.length} department(s)
+                  </p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label>Department Role</Label>

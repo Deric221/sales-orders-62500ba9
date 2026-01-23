@@ -94,16 +94,17 @@ serve(async (req) => {
         errorMap: () => ({ message: "Employee type must be 'employee' or 'manager'" })
       }),
       departmentId: z.string().uuid("Invalid department ID format").optional().nullable(),
+      departmentIds: z.array(z.string().uuid("Invalid department ID format")).optional().nullable(),
       departmentRole: z.enum(["sales", "orders", "finance", "projects", "admin"], {
         errorMap: () => ({ message: "Invalid department role" })
       }).optional().nullable(),
-      managerialRole: z.enum(["director_finance", "director_business", "director_cx", "head_compliance"], {
+      managerialRole: z.enum(["director_finance", "director_business", "director_cx", "head_compliance", "director_of_technology"], {
         errorMap: () => ({ message: "Invalid managerial role" })
       }).optional().nullable(),
     });
 
     const body = await req.json();
-    const { userId, employeeType, departmentId, departmentRole, managerialRole } = updateRoleSchema.parse(body);
+    const { userId, employeeType, departmentId, departmentIds, departmentRole, managerialRole } = updateRoleSchema.parse(body);
 
     // Prevent admins from removing their own admin role
     if (userId === user.id && departmentRole !== "admin") {
@@ -117,13 +118,15 @@ serve(async (req) => {
       throw new Error("Target user not found");
     }
 
-    // Update or insert the user role (upsert)
+    // Update or insert the user role (upsert) - use first department for legacy support
+    const primaryDepartmentId = departmentIds && departmentIds.length > 0 ? departmentIds[0] : (departmentId || null);
+    
     const { error: updateError } = await supabaseClient
       .from("user_roles")
       .upsert({
         user_id: userId,
         employee_type: employeeType,
-        department_id: departmentId || null,
+        department_id: primaryDepartmentId,
         department_role: departmentRole || null,
       }, {
         onConflict: 'user_id'
@@ -133,8 +136,31 @@ serve(async (req) => {
       throw updateError;
     }
 
+    // Handle multiple department assignments
+    if (departmentIds && departmentIds.length > 0) {
+      // Remove existing department assignments for this user
+      await supabaseClient
+        .from("user_department_assignments")
+        .delete()
+        .eq("user_id", userId);
+
+      // Insert new department assignments
+      const assignments = departmentIds.map((deptId: string) => ({
+        user_id: userId,
+        department_id: deptId,
+      }));
+
+      const { error: assignmentsError } = await supabaseClient
+        .from("user_department_assignments")
+        .insert(assignments);
+
+      if (assignmentsError) {
+        console.error("Error inserting department assignments:", assignmentsError);
+      }
+    }
+
     // Handle managerial role assignment
-    if (managerialRole && departmentId) {
+    if (managerialRole && primaryDepartmentId) {
       // First, remove any existing assignment for this role
       await supabaseClient
         .from("manager_assignments")
@@ -146,7 +172,7 @@ serve(async (req) => {
         .from("manager_assignments")
         .insert({
           user_id: userId,
-          department_id: departmentId,
+          department_id: primaryDepartmentId,
           role: managerialRole,
         });
 
@@ -161,6 +187,37 @@ serve(async (req) => {
         .eq("user_id", userId);
     }
 
+    // Update employee-manager mapping based on department hierarchy
+    if (employeeType === 'employee' && primaryDepartmentId) {
+      // Get the reporting manager for this department
+      const { data: hierarchy } = await supabaseClient
+        .from("department_hierarchy")
+        .select("reports_to")
+        .eq("department_id", primaryDepartmentId)
+        .single();
+
+      if (hierarchy?.reports_to) {
+        // Find the manager assigned to this role
+        const { data: managerAssignment } = await supabaseClient
+          .from("manager_assignments")
+          .select("user_id")
+          .eq("role", hierarchy.reports_to)
+          .single();
+
+        if (managerAssignment?.user_id) {
+          // Create or update employee-manager mapping
+          await supabaseClient
+            .from("employee_manager_mapping")
+            .upsert({
+              employee_id: userId,
+              manager_id: managerAssignment.user_id,
+            }, {
+              onConflict: 'employee_id'
+            });
+        }
+      }
+    }
+
     // Audit logging
     await supabaseClient.from('audit_logs').insert({
       user_id: user.id,
@@ -169,7 +226,8 @@ serve(async (req) => {
       new_data: { 
         user_id: userId,
         employee_type: employeeType,
-        department_id: departmentId,
+        department_id: primaryDepartmentId,
+        department_ids: departmentIds,
         department_role: departmentRole,
         managerial_role: managerialRole,
       },
