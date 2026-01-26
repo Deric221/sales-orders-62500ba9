@@ -5,11 +5,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { LogOut } from "lucide-react";
 import DashboardLayout from "@/components/layout/DashboardLayout";
-import SalesDashboard from "@/components/dashboards/SalesDashboard";
-import OrdersDashboard from "@/components/dashboards/OrdersDashboard";
-import FinanceDashboard from "@/components/dashboards/FinanceDashboard";
-import ProjectsDashboard from "@/components/dashboards/ProjectsDashboard";
-import AdminDashboard from "@/components/dashboards/AdminDashboard";
+import WelcomeHeader from "@/components/layout/WelcomeHeader";
+import DashboardFeatureLinks from "@/components/dashboards/DashboardFeatureLinks";
 
 const Dashboard = () => {
   const { user, userRole, loading, signOut, noRoleAssigned } = useAuth();
@@ -23,8 +20,8 @@ const Dashboard = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-lg">Loading...</div>
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-lg text-foreground">Loading...</div>
       </div>
     );
   }
@@ -35,7 +32,7 @@ const Dashboard = () => {
 
   if (noRoleAssigned) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted">
+      <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="max-w-md w-full mx-4">
           <Card>
             <CardHeader>
@@ -59,20 +56,37 @@ const Dashboard = () => {
     );
   }
 
-  const renderDashboard = () => {
+  const getDescription = () => {
     switch (userRole.department_role) {
       case "sales":
-        return <SalesDashboard />;
+        return "Manage quotes, track customer POs, and monitor your sales pipeline. Upload documents and coordinate with the orders team.";
       case "orders":
-        return <OrdersDashboard />;
+        return "Process company purchase orders, create waybills, manage deliveries, and upload distributor invoices. Track order fulfillment.";
       case "finance":
-        return <FinanceDashboard />;
+        return "Generate invoices for completed orders, manage expense payments, and oversee financial workflows.";
       case "projects":
-        return <ProjectsDashboard />;
+        return "Manage project lifecycles, track documentation, and mark projects as complete for invoicing.";
       case "admin":
-        return <AdminDashboard />;
+        return "Oversee all system activities, manage users and roles, track workflows, and monitor expense tickets.";
       default:
-        return null;
+        return "Welcome to your dashboard.";
+    }
+  };
+
+  const getFeatures = () => {
+    switch (userRole.department_role) {
+      case "sales":
+        return ["Upload Quotes", "Link Customer POs", "Track Documents"];
+      case "orders":
+        return ["Create Waybills", "Upload Company POs", "Manage Deliveries"];
+      case "finance":
+        return ["Generate Invoices", "Expense Payments", "Order Lookup"];
+      case "projects":
+        return ["Project Management", "Documentation", "Completion Tracking"];
+      case "admin":
+        return ["User Management", "Workflow Tracking", "System Overview"];
+      default:
+        return [];
     }
   };
 
@@ -89,7 +103,24 @@ const Dashboard = () => {
 
   return (
     <DashboardLayout title={getTitle()}>
-      {renderDashboard()}
+      <div className="space-y-6">
+        <WelcomeHeader
+          pageDescription={getDescription()}
+          features={getFeatures()}
+        />
+        
+        <Card>
+          <CardHeader>
+            <CardTitle className="capitalize">{userRole.department_role} Quick Actions</CardTitle>
+            <CardDescription>
+              Access your department's key features
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <DashboardFeatureLinks departmentRole={userRole.department_role} />
+          </CardContent>
+        </Card>
+      </div>
     </DashboardLayout>
   );
 };
