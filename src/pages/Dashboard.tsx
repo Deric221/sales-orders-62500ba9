@@ -7,6 +7,7 @@ import { LogOut } from "lucide-react";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import WelcomeHeader from "@/components/layout/WelcomeHeader";
 import DashboardFeatureLinks from "@/components/dashboards/DashboardFeatureLinks";
+import DepartmentPerformanceChart from "@/components/charts/DepartmentPerformanceChart";
 
 const Dashboard = () => {
   const { user, userRole, loading, signOut, noRoleAssigned } = useAuth();
@@ -120,6 +121,9 @@ const Dashboard = () => {
             <DashboardFeatureLinks departmentRole={userRole.department_role} />
           </CardContent>
         </Card>
+
+        {/* Performance Charts */}
+        <DepartmentPerformanceChart departmentRole={userRole.department_role} />
       </div>
     </DashboardLayout>
   );

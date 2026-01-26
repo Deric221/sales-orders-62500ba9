@@ -25,9 +25,10 @@ const DashboardFeatureLinks = ({ departmentRole }: DashboardFeatureLinksProps) =
     switch (departmentRole) {
       case "sales":
         return [
-          { title: "Upload Quote", icon: FileText, path: "/sales-quotes", description: "Upload new quotes" },
-          { title: "Customer PO", icon: Upload, path: "/sales-quotes", description: "Link customer purchase orders" },
-          { title: "Distributor Quote", icon: FileCheck, path: "/sales-quotes", description: "Manage distributor quotes" },
+          { title: "Upload Quote", icon: FileText, path: "/sales-upload-quote", description: "Upload new quotes" },
+          { title: "Customer PO", icon: Upload, path: "/sales-customer-po", description: "Link customer purchase orders" },
+          { title: "Distributor Quote", icon: FileCheck, path: "/sales-distributor-quote", description: "Manage distributor quotes" },
+          { title: "Quotes & Documents", icon: FileText, path: "/sales-quotes", description: "View linked documents" },
         ];
       case "orders":
         return [
