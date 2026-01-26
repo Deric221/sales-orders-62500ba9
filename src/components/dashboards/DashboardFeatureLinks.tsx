@@ -25,7 +25,9 @@ const DashboardFeatureLinks = ({ departmentRole }: DashboardFeatureLinksProps) =
     switch (departmentRole) {
       case "sales":
         return [
-          { title: "Quotes & Documents", icon: FileText, path: "/sales-quotes", description: "Manage quotes and customer documents" },
+          { title: "Upload Quote", icon: FileText, path: "/sales-quotes", description: "Upload new quotes" },
+          { title: "Customer PO", icon: Upload, path: "/sales-quotes", description: "Link customer purchase orders" },
+          { title: "Distributor Quote", icon: FileCheck, path: "/sales-quotes", description: "Manage distributor quotes" },
         ];
       case "orders":
         return [
@@ -37,11 +39,13 @@ const DashboardFeatureLinks = ({ departmentRole }: DashboardFeatureLinksProps) =
         ];
       case "finance":
         return [
+          { title: "Invoice Management", icon: Receipt, path: "/finance-invoices", description: "Generate and manage invoices" },
           { title: "Order Lookup", icon: Search, path: "/order-lookup", description: "Search orders for invoicing" },
           { title: "Expense Payments", icon: CreditCard, path: "/expense-payments", description: "Process expense payments" },
         ];
       case "projects":
         return [
+          { title: "Project Management", icon: FolderKanban, path: "/projects-management", description: "Manage project lifecycle" },
           { title: "Completed Projects", icon: FileCheck, path: "/completed-projects", description: "View completed projects" },
         ];
       case "admin":

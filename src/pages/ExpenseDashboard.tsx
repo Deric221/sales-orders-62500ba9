@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
-import { LogOut } from "lucide-react";
+import { LogOut, ArrowLeft } from "lucide-react";
 import logo from "@/assets/logo.png";
 import EmployeeExpenseDashboard from "@/components/expenses/EmployeeExpenseDashboard";
 import ManagerExpenseDashboard from "@/components/expenses/ManagerExpenseDashboard";
@@ -50,9 +50,15 @@ const ExpenseDashboard = () => {
   return <div className="min-h-screen bg-background">
       <header className="border-b bg-card">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <img alt="Logo" className="h-8 w-8" src="/lovable-uploads/5bf41aad-4444-4704-b092-2f758189b017.jpg" />
-            <h1 className="text-2xl font-bold">Expense Ticket System</h1>
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard")}>
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Dashboard
+            </Button>
+            <div className="flex items-center gap-2">
+              <img alt="Logo" className="h-8 w-8" src="/favicon.png" />
+              <h1 className="text-2xl font-bold">Expense Ticket System</h1>
+            </div>
           </div>
           <div className="flex items-center gap-4">
             <div className="text-sm">

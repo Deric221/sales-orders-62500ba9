@@ -119,7 +119,9 @@ const DashboardSidebar = ({ userRole }: DashboardSidebarProps) => {
     ];
 
     const salesItems = [
-      { title: "Quotes & Documents", icon: FileText, path: "/sales-quotes" },
+      { title: "Upload Quote", icon: Upload, path: "/sales-quotes" },
+      { title: "Customer PO", icon: FileCheck, path: "/sales-quotes" },
+      { title: "Distributor Quote", icon: FileText, path: "/sales-quotes" },
     ];
 
     const ordersItems = [
@@ -131,13 +133,13 @@ const DashboardSidebar = ({ userRole }: DashboardSidebarProps) => {
     ];
 
     const financeItems = [
-      { title: "Invoice Management", icon: Receipt, path: "/dashboard" },
+      { title: "Invoice Management", icon: Receipt, path: "/finance-invoices" },
       { title: "Order Lookup", icon: Search, path: "/order-lookup" },
       { title: "Expense Payments", icon: CreditCard, path: "/expense-payments" },
     ];
 
     const projectsItems = [
-      { title: "Project Management", icon: FolderKanban, path: "/dashboard" },
+      { title: "Project Management", icon: FolderKanban, path: "/projects-management" },
       { title: "Completed Projects", icon: FileCheck, path: "/completed-projects" },
     ];
 

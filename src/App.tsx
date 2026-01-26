@@ -25,6 +25,8 @@ import AdminWorkflowTracking from "./pages/AdminWorkflowTracking";
 import AdminExpenseOverview from "./pages/AdminExpenseOverview";
 import AdminWaybillOverview from "./pages/AdminWaybillOverview";
 import SalesQuotes from "./pages/SalesQuotes";
+import FinanceInvoices from "./pages/FinanceInvoices";
+import ProjectsManagement from "./pages/ProjectsManagement";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -58,6 +60,8 @@ const App = () => (
             <Route path="/admin/expenses" element={<AdminExpenseOverview />} />
             <Route path="/admin/waybills" element={<AdminWaybillOverview />} />
             <Route path="/sales-quotes" element={<SalesQuotes />} />
+            <Route path="/finance-invoices" element={<FinanceInvoices />} />
+            <Route path="/projects-management" element={<ProjectsManagement />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>
