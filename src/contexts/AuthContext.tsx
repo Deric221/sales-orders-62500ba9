@@ -65,16 +65,24 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         .from("user_roles")
         .select("employee_type, department_role")
         .eq("user_id", userId)
-        .single();
+        .maybeSingle();
 
       if (error) {
         console.error("Error fetching user role:", error);
         setNoRoleAssigned(true);
+        setUserRole({ employee_type: "employee", department_role: null });
+        return;
+      }
+
+      // Handle case where no role exists at all
+      if (!data) {
+        setNoRoleAssigned(true);
+        setUserRole({ employee_type: "employee", department_role: null });
         return;
       }
 
       // Check if user has a department_role assigned
-      if (!data?.department_role) {
+      if (!data.department_role) {
         setNoRoleAssigned(true);
       } else {
         setNoRoleAssigned(false);
@@ -84,6 +92,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     } catch (error) {
       console.error("Error fetching user role:", error);
       setNoRoleAssigned(true);
+      setUserRole({ employee_type: "employee", department_role: null });
     }
   };
 

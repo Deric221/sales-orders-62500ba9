@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { useTheme } from "@/contexts/ThemeContext";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Sidebar,
@@ -27,6 +28,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import {
   LayoutDashboard,
@@ -43,6 +45,8 @@ import {
   CreditCard,
   FileCheck,
   Settings,
+  Moon,
+  Sun,
 } from "lucide-react";
 
 interface DashboardSidebarProps {
@@ -56,6 +60,7 @@ const DashboardSidebar = ({ userRole }: DashboardSidebarProps) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, signOut } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const { toast } = useToast();
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
@@ -289,6 +294,20 @@ const DashboardSidebar = ({ userRole }: DashboardSidebarProps) => {
                   <Badge className="capitalize">{userRole.department_role}</Badge>
                 )}
               </div>
+            </div>
+            <div className="flex items-center justify-between py-2">
+              <div className="flex items-center gap-2">
+                {theme === "dark" ? (
+                  <Moon className="h-4 w-4" />
+                ) : (
+                  <Sun className="h-4 w-4" />
+                )}
+                <Label>Dark Mode</Label>
+              </div>
+              <Switch
+                checked={theme === "dark"}
+                onCheckedChange={toggleTheme}
+              />
             </div>
             <Button
               variant="outline"
