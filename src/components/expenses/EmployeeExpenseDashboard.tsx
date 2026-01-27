@@ -852,29 +852,9 @@ const EmployeeExpenseDashboard = () => {
                         )}
                       </>
                     )}
-                    
-                    {/* Update refund status section for retired tickets with pending refund */}
-                    {ticket.status === "retired" && ticket.actual_amount_spent && ticket.refund_status === 'refund_pending' && (
-                      <div className="space-y-2 mt-2 p-2 border rounded bg-amber-50">
-                        <Label className="text-sm font-medium">Update Refund Status</Label>
-                        <div className="flex gap-2">
-                          <Button
-                            variant="default"
-                            size="sm"
-                            onClick={() => updateRefundMutation.mutate({ 
-                              ticketId: ticket.id, 
-                              refundStatus: 'refund_returned'
-                            })}
-                            disabled={updateRefundMutation.isPending}
-                            className="flex-1"
-                          >
-                            Mark Refund as Returned
-                          </Button>
-                        </div>
-                      </div>
-                    )}
                   </div>
-                  {ticket.status === "paid" && (ticket as any).has_receipt && !ticket.expense_retirements?.length && (
+                  {/* Upload Retirement Document - only when paid, has receipt, no existing retirement, and refund is NOT pending */}
+                  {ticket.status === "paid" && (ticket as any).has_receipt && !ticket.expense_retirements?.length && ticket.refund_status !== 'refund_pending' && (
                     <Button
                       variant="outline"
                       size="sm"
@@ -884,6 +864,12 @@ const EmployeeExpenseDashboard = () => {
                       <Upload className="h-4 w-4 mr-2" />
                       Upload Retirement Document
                     </Button>
+                  )}
+                  {/* Message when refund is pending - retirement blocked */}
+                  {ticket.status === "paid" && (ticket as any).has_receipt && !ticket.expense_retirements?.length && ticket.refund_status === 'refund_pending' && (
+                    <div className="p-3 border rounded bg-amber-50 text-sm text-amber-800">
+                      <strong>Note:</strong> Please mark refund as returned before uploading retirement document.
+                    </div>
                   )}
                   {ticket.expense_retirements?.length > 0 && (
                     <div className="space-y-2 pt-2 border-t">
