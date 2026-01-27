@@ -852,6 +852,27 @@ const EmployeeExpenseDashboard = () => {
                         )}
                       </>
                     )}
+                    
+                    {/* Update refund status section for retired tickets with pending refund */}
+                    {ticket.status === "retired" && ticket.actual_amount_spent && ticket.refund_status === 'refund_pending' && (
+                      <div className="space-y-2 mt-2 p-2 border rounded bg-amber-50">
+                        <Label className="text-sm font-medium">Update Refund Status</Label>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="default"
+                            size="sm"
+                            onClick={() => updateRefundMutation.mutate({ 
+                              ticketId: ticket.id, 
+                              refundStatus: 'refund_returned'
+                            })}
+                            disabled={updateRefundMutation.isPending}
+                            className="flex-1"
+                          >
+                            Mark Refund as Returned
+                          </Button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                   {ticket.status === "paid" && (ticket as any).has_receipt && !ticket.expense_retirements?.length && (
                     <Button
