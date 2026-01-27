@@ -44,7 +44,7 @@ serve(async (req) => {
       }
     );
 
-    // Verify JWT authentication
+    // Verify JWT authentication using getClaims for local dev compatibility
     const authHeader = req.headers.get('Authorization');
     if (!authHeader?.startsWith('Bearer ')) {
       return new Response(
@@ -54,9 +54,9 @@ serve(async (req) => {
     }
 
     const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: authError } = await supabaseClient.auth.getUser(token);
+    const { data: claimsData, error: authError } = await supabaseClient.auth.getClaims(token);
 
-    if (authError || !user) {
+    if (authError || !claimsData?.claims?.sub) {
       console.error("Auth error:", {
         error: authError?.message,
         timestamp: new Date().toISOString()
@@ -66,6 +66,9 @@ serve(async (req) => {
         { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+    
+    const userId = claimsData.claims.sub;
+    console.log("Authenticated user:", userId);
 
     // Validate input
     const body = await req.json();
