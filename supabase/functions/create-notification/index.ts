@@ -36,20 +36,28 @@ Deno.serve(async (req) => {
     // Create Supabase client with service role for inserting notifications
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
 
-    // Verify the user's JWT first
-    const userClient = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: authHeader } },
+    // Create admin client first for JWT verification
+    const adminClient = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
     });
 
-    const { data: { user }, error: authError } = await userClient.auth.getUser();
-    if (authError || !user) {
+    // Use getClaims for JWT verification (works both locally and in production)
+    const token = authHeader.replace("Bearer ", "");
+    const { data: claimsData, error: claimsError } = await adminClient.auth.getClaims(token);
+    
+    if (claimsError || !claimsData?.claims) {
+      console.error("JWT verification failed:", claimsError);
       return new Response(JSON.stringify({ error: "Invalid or expired token" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+    
+    const user = { id: claimsData.claims.sub as string };
 
     // Parse request body
     const body = await req.json();
@@ -88,8 +96,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Use service role to insert notifications (bypasses RLS)
-    const adminClient = createClient(supabaseUrl, supabaseServiceKey);
+    // Use the same admin client to insert notifications (bypasses RLS)
 
     const { data, error: insertError } = await adminClient
       .from("notifications")
