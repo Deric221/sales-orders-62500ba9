@@ -52,11 +52,16 @@ serve(async (req) => {
     }
 
     const token = authHeader.replace("Bearer ", "");
-    const { data: { user }, error: userError } = await supabaseClient.auth.getUser(token);
-
-    if (userError || !user) {
+    
+    // Use getClaims for JWT verification (works both locally and in production)
+    const { data: claimsData, error: claimsError } = await supabaseClient.auth.getClaims(token);
+    
+    if (claimsError || !claimsData?.claims) {
+      console.error("JWT verification failed:", claimsError);
       throw new Error("Unauthorized: Invalid token");
     }
+    
+    const user = { id: claimsData.claims.sub as string, email: claimsData.claims.email as string };
 
     // Rate limiting check
     if (!checkRateLimit(user.id)) {
