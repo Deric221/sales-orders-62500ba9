@@ -13,6 +13,9 @@ export default {
       },
     },
     extend: {
+      fontFamily: {
+        sans: ["'Segoe UI'", "-apple-system", "BlinkMacSystemFont", "'Roboto'", "'Helvetica Neue'", "sans-serif"],
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
@@ -57,6 +60,18 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
+        "bc-cue": {
+          blue: "hsl(var(--bc-cue-blue))",
+          green: "hsl(var(--bc-cue-green))",
+          amber: "hsl(var(--bc-cue-amber))",
+          red: "hsl(var(--bc-cue-red))",
+          purple: "hsl(var(--bc-cue-purple))",
+        },
+        "bc-ribbon": {
+          DEFAULT: "hsl(var(--bc-ribbon))",
+          border: "hsl(var(--bc-ribbon-border))",
+        },
+        "bc-factbox": "hsl(var(--bc-factbox))",
       },
       borderRadius: {
         lg: "var(--radius)",
@@ -65,20 +80,12 @@ export default {
       },
       keyframes: {
         "accordion-down": {
-          from: {
-            height: "0",
-          },
-          to: {
-            height: "var(--radix-accordion-content-height)",
-          },
+          from: { height: "0" },
+          to: { height: "var(--radix-accordion-content-height)" },
         },
         "accordion-up": {
-          from: {
-            height: "var(--radix-accordion-content-height)",
-          },
-          to: {
-            height: "0",
-          },
+          from: { height: "var(--radix-accordion-content-height)" },
+          to: { height: "0" },
         },
       },
       animation: {

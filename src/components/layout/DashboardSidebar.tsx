@@ -14,7 +14,6 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarFooter,
-  SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
 import {
@@ -24,6 +23,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -47,6 +51,8 @@ import {
   Settings,
   Moon,
   Sun,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 
 interface DashboardSidebarProps {
@@ -70,41 +76,35 @@ const DashboardSidebar = ({ userRole }: DashboardSidebarProps) => {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isResetting, setIsResetting] = useState(false);
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
+    navigation: true,
+    department: true,
+    expense: true,
+  });
+
+  const toggleGroup = (key: string) => {
+    setOpenGroups((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
 
   const handlePasswordReset = async () => {
     if (newPassword !== confirmPassword) {
-      toast({
-        variant: "destructive",
-        title: "Passwords don't match",
-        description: "Please ensure both passwords are the same.",
-      });
+      toast({ variant: "destructive", title: "Passwords don't match", description: "Please ensure both passwords are the same." });
       return;
     }
-
     if (newPassword.length < 6) {
-      toast({
-        variant: "destructive",
-        title: "Password too short",
-        description: "Password must be at least 6 characters.",
-      });
+      toast({ variant: "destructive", title: "Password too short", description: "Password must be at least 6 characters." });
       return;
     }
-
     setIsResetting(true);
     try {
       const { error } = await supabase.auth.updateUser({ password: newPassword });
       if (error) throw error;
-      
       toast({ title: "Password updated successfully" });
       setShowPasswordReset(false);
       setNewPassword("");
       setConfirmPassword("");
     } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Failed to update password",
-        description: error.message,
-      });
+      toast({ variant: "destructive", title: "Failed to update password", description: error.message });
     } finally {
       setIsResetting(false);
     }
@@ -112,72 +112,99 @@ const DashboardSidebar = ({ userRole }: DashboardSidebarProps) => {
 
   const isActive = (path: string) => location.pathname === path;
 
-  // Define menu items based on role
-  const getMenuItems = () => {
-    const baseItems = [
-      { title: "Dashboard", icon: LayoutDashboard, path: "/dashboard" },
-    ];
+  const salesItems = [
+    { title: "Upload Quote", icon: Upload, path: "/sales-upload-quote" },
+    { title: "Customer PO", icon: FileCheck, path: "/sales-customer-po" },
+    { title: "Distributor Quote", icon: FileText, path: "/sales-distributor-quote" },
+    { title: "Quotes & Documents", icon: FileText, path: "/sales-quotes" },
+  ];
 
-    const salesItems = [
-      { title: "Upload Quote", icon: Upload, path: "/sales-upload-quote" },
-      { title: "Customer PO", icon: FileCheck, path: "/sales-customer-po" },
-      { title: "Distributor Quote", icon: FileText, path: "/sales-distributor-quote" },
-      { title: "Quotes & Documents", icon: FileText, path: "/sales-quotes" },
-    ];
+  const ordersItems = [
+    { title: "Upload Company PO", icon: Upload, path: "/upload-company-po" },
+    { title: "Upload Dist. Invoice", icon: FileCheck, path: "/upload-distributor-invoice" },
+    { title: "Create Waybill", icon: Truck, path: "/waybill-management" },
+    { title: "Order Lookup", icon: Search, path: "/order-lookup" },
+    { title: "Delivery Management", icon: Package, path: "/delivery-management" },
+  ];
 
-    const ordersItems = [
-      { title: "Upload Company PO", icon: Upload, path: "/upload-company-po" },
-      { title: "Upload Distributor Invoice", icon: FileCheck, path: "/upload-distributor-invoice" },
-      { title: "Create Waybill", icon: Truck, path: "/waybill-management" },
-      { title: "Order Lookup", icon: Search, path: "/order-lookup" },
-      { title: "Delivery Management", icon: Package, path: "/delivery-management" },
-    ];
+  const financeItems = [
+    { title: "Invoice Management", icon: Receipt, path: "/finance-invoices" },
+    { title: "Order Lookup", icon: Search, path: "/order-lookup" },
+    { title: "Expense Payments", icon: CreditCard, path: "/expense-payments" },
+  ];
 
-    const financeItems = [
-      { title: "Invoice Management", icon: Receipt, path: "/finance-invoices" },
-      { title: "Order Lookup", icon: Search, path: "/order-lookup" },
-      { title: "Expense Payments", icon: CreditCard, path: "/expense-payments" },
-    ];
+  const projectsItems = [
+    { title: "Project Management", icon: FolderKanban, path: "/projects-management" },
+    { title: "Completed Projects", icon: FileCheck, path: "/completed-projects" },
+  ];
 
-    const projectsItems = [
-      { title: "Project Management", icon: FolderKanban, path: "/projects-management" },
-      { title: "Completed Projects", icon: FileCheck, path: "/completed-projects" },
-    ];
+  const adminItems = [
+    { title: "User Management", icon: Settings, path: "/admin/users" },
+    { title: "Workflow Tracking", icon: FileText, path: "/admin/workflows" },
+    { title: "Expense Overview", icon: Receipt, path: "/admin/expenses" },
+    { title: "Waybill Overview", icon: Truck, path: "/admin/waybills" },
+  ];
 
-    const adminItems = [
-      { title: "User Management", icon: Settings, path: "/admin/users" },
-      { title: "Workflow Tracking", icon: FileText, path: "/admin/workflows" },
-      { title: "Expense Overview", icon: Receipt, path: "/admin/expenses" },
-      { title: "Waybill Overview", icon: Truck, path: "/admin/waybills" },
-    ];
-
+  const getDeptItems = () => {
     switch (userRole.department_role) {
-      case "sales":
-        return { base: baseItems, department: salesItems };
-      case "orders":
-        return { base: baseItems, department: ordersItems };
-      case "finance":
-        return { base: baseItems, department: financeItems };
-      case "projects":
-        return { base: baseItems, department: projectsItems };
-      case "admin":
-        return { base: baseItems, department: adminItems };
-      default:
-        return { base: baseItems, department: [] };
+      case "sales": return salesItems;
+      case "orders": return ordersItems;
+      case "finance": return financeItems;
+      case "projects": return projectsItems;
+      case "admin": return adminItems;
+      default: return [];
     }
   };
 
-  const menuItems = getMenuItems();
+  const deptItems = getDeptItems();
+  const deptLabel = userRole.department_role
+    ? `${userRole.department_role.charAt(0).toUpperCase() + userRole.department_role.slice(1)}`
+    : "";
 
   const getRoleLabel = () => {
     if (!userRole.department_role) return userRole.employee_type;
     return `${userRole.employee_type} - ${userRole.department_role}`;
   };
 
+  const renderCollapsibleGroup = (
+    key: string,
+    label: string,
+    items: { title: string; icon: any; path: string }[]
+  ) => (
+    <SidebarGroup>
+      <Collapsible open={openGroups[key]} onOpenChange={() => toggleGroup(key)}>
+        <CollapsibleTrigger asChild>
+          <SidebarGroupLabel className="cursor-pointer flex items-center justify-between w-full hover:bg-sidebar-accent/50 rounded px-2 py-1">
+            <span>{label}</span>
+            {!collapsed && (openGroups[key] ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />)}
+          </SidebarGroupLabel>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {items.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton
+                    onClick={() => navigate(item.path)}
+                    isActive={isActive(item.path)}
+                    tooltip={item.title}
+                  >
+                    <item.icon className="h-4 w-4" />
+                    <span>{item.title}</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </CollapsibleContent>
+      </Collapsible>
+    </SidebarGroup>
+  );
+
   return (
     <>
       <Sidebar collapsible="icon" className="border-r">
-        <SidebarHeader className="border-b p-4">
+        <SidebarHeader className="border-b border-sidebar-border p-4">
           <div className="flex items-center gap-2">
             <img
               alt="Logo"
@@ -185,79 +212,38 @@ const DashboardSidebar = ({ userRole }: DashboardSidebarProps) => {
               src="/lovable-uploads/911cb943-1516-4814-bade-6006da2aa631.jpg"
             />
             {!collapsed && (
-              <span className="font-semibold text-sm">Sales & Orders</span>
+              <div className="min-w-0">
+                <span className="font-semibold text-sm text-sidebar-foreground block">Sales & Orders</span>
+                {deptLabel && (
+                  <span className="text-xs text-sidebar-foreground/60 capitalize">{deptLabel} Department</span>
+                )}
+              </div>
             )}
           </div>
         </SidebarHeader>
 
         <SidebarContent>
-          {/* Main Navigation */}
-          <SidebarGroup>
-            <SidebarGroupLabel>Navigation</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {menuItems.base.map((item) => (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton
-                      onClick={() => navigate(item.path)}
-                      isActive={isActive(item.path)}
-                      tooltip={item.title}
-                    >
-                      <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
+          {/* Home */}
+          {renderCollapsibleGroup("navigation", "Home", [
+            { title: "Dashboard", icon: LayoutDashboard, path: "/dashboard" },
+          ])}
 
           {/* Department Features */}
-          {menuItems.department.length > 0 && (
-            <SidebarGroup>
-              <SidebarGroupLabel className="capitalize">
-                {userRole.department_role} Features
-              </SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  {menuItems.department.map((item) => (
-                    <SidebarMenuItem key={item.title}>
-                      <SidebarMenuButton
-                        onClick={() => navigate(item.path)}
-                        isActive={isActive(item.path)}
-                        tooltip={item.title}
-                      >
-                        <item.icon className="h-4 w-4" />
-                        <span>{item.title}</span>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  ))}
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
-          )}
+          {deptItems.length > 0 && renderCollapsibleGroup("department", `${deptLabel} Features`, deptItems)}
 
           {/* Expense System */}
-          <SidebarGroup>
-            <SidebarGroupLabel>Expense System</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    onClick={() => navigate("/expense-dashboard")}
-                    isActive={isActive("/expense-dashboard")}
-                    tooltip="Expense Tickets"
-                  >
-                    <Receipt className="h-4 w-4" />
-                    <span>Expense Tickets</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
+          {renderCollapsibleGroup("expense", "Expense System", [
+            { title: "Expense Tickets", icon: Receipt, path: "/expense-dashboard" },
+          ])}
         </SidebarContent>
 
-        <SidebarFooter className="border-t p-2">
+        <SidebarFooter className="border-t border-sidebar-border p-2">
+          {!collapsed && (
+            <div className="px-2 py-1.5 mb-1">
+              <div className="text-xs text-sidebar-foreground/60 truncate">{user?.email}</div>
+              <div className="text-xs text-sidebar-foreground/40 capitalize">{getRoleLabel()}</div>
+            </div>
+          )}
           <SidebarMenu>
             <SidebarMenuItem>
               <SidebarMenuButton onClick={() => setShowProfile(true)} tooltip="User Profile">
@@ -290,35 +276,21 @@ const DashboardSidebar = ({ userRole }: DashboardSidebarProps) => {
             <div className="space-y-2">
               <Label className="text-muted-foreground">Role</Label>
               <div className="flex gap-2">
-                <Badge variant="outline" className="capitalize">
-                  {userRole.employee_type}
-                </Badge>
-                {userRole.department_role && (
-                  <Badge className="capitalize">{userRole.department_role}</Badge>
-                )}
+                <Badge variant="outline" className="capitalize">{userRole.employee_type}</Badge>
+                {userRole.department_role && <Badge className="capitalize">{userRole.department_role}</Badge>}
               </div>
             </div>
             <div className="flex items-center justify-between py-2">
               <div className="flex items-center gap-2">
-                {theme === "dark" ? (
-                  <Moon className="h-4 w-4" />
-                ) : (
-                  <Sun className="h-4 w-4" />
-                )}
+                {theme === "dark" ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
                 <Label>Dark Mode</Label>
               </div>
-              <Switch
-                checked={theme === "dark"}
-                onCheckedChange={toggleTheme}
-              />
+              <Switch checked={theme === "dark"} onCheckedChange={toggleTheme} />
             </div>
             <Button
               variant="outline"
               className="w-full"
-              onClick={() => {
-                setShowProfile(false);
-                setShowPasswordReset(true);
-              }}
+              onClick={() => { setShowProfile(false); setShowPasswordReset(true); }}
             >
               <Key className="h-4 w-4 mr-2" />
               Reset Password
@@ -337,29 +309,13 @@ const DashboardSidebar = ({ userRole }: DashboardSidebarProps) => {
           <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="new-password">New Password</Label>
-              <Input
-                id="new-password"
-                type="password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                placeholder="Enter new password"
-              />
+              <Input id="new-password" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="Enter new password" />
             </div>
             <div className="space-y-2">
               <Label htmlFor="confirm-password">Confirm Password</Label>
-              <Input
-                id="confirm-password"
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="Confirm new password"
-              />
+              <Input id="confirm-password" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Confirm new password" />
             </div>
-            <Button
-              className="w-full"
-              onClick={handlePasswordReset}
-              disabled={isResetting || !newPassword || !confirmPassword}
-            >
+            <Button className="w-full" onClick={handlePasswordReset} disabled={isResetting || !newPassword || !confirmPassword}>
               {isResetting ? "Updating..." : "Update Password"}
             </Button>
           </div>
