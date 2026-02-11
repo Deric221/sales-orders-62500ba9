@@ -18,6 +18,7 @@ import DeliveryManagement from "@/components/orders/DeliveryManagement";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import { createNotifications } from "@/lib/notifications";
+import WelcomeHeader from "@/components/layout/WelcomeHeader";
 
 const OrdersDashboard = () => {
   const { user } = useAuth();
@@ -481,6 +482,10 @@ const OrdersDashboard = () => {
 
   return (
     <div className="space-y-6">
+      <WelcomeHeader
+        pageDescription="Process company POs, create waybills, track deliveries, and manage order fulfillment."
+        features={["Company POs", "Waybills", "Deliveries", "Order Lookup"]}
+      />
       <div className="flex items-center justify-between">
         <h2 className="text-3xl font-bold">Orders Dashboard</h2>
         <Button onClick={() => navigate("/all-waybills")}>

@@ -13,24 +13,28 @@ const Index = () => {
       name: "Sales",
       icon: FileText,
       color: "border-l-bc-cue-blue",
+      description: "Upload and track quotes, link customer purchase orders, and manage distributor quotes through the full sales pipeline.",
       features: ["Upload Quotes", "Customer POs", "Distributor Quotes", "Document Tracking"],
     },
     {
       name: "Orders",
       icon: ShoppingCart,
       color: "border-l-bc-cue-green",
+      description: "Create company POs, generate waybills, track deliveries, and manage the full order fulfillment lifecycle.",
       features: ["Company POs", "Waybill Management", "Delivery Tracking", "Order Lookup"],
     },
     {
       name: "Finance",
       icon: Receipt,
       color: "border-l-bc-cue-amber",
+      description: "Generate invoices for completed orders, process expense ticket payments, and manage financial workflows.",
       features: ["Invoice Generation", "Expense Payments", "Payment Processing", "Reports"],
     },
     {
       name: "Projects",
       icon: FolderKanban,
       color: "border-l-bc-cue-purple",
+      description: "Track project progress from creation to completion, upload documentation, and manage project milestones.",
       features: ["Project Lifecycle", "Documentation", "Completion Tracking", "Team Collaboration"],
     },
   ];
@@ -76,11 +80,65 @@ const Index = () => {
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col lg:flex-row">
-        {/* Left: Interactive Demo Preview */}
-        <div className="flex-1 p-6 space-y-4">
+        {/* Left: Main content area */}
+        <div className="flex-1 p-6 space-y-6">
+
+          {/* BC-style Get Started Hero Card */}
+          <div className="relative bg-gradient-to-r from-primary/10 via-primary/5 to-primary/15 border border-primary/20 rounded-sm p-8 overflow-hidden">
+            <div className="relative z-10 max-w-lg">
+              <p className="text-xs font-semibold text-primary uppercase tracking-wide mb-1">Get started</p>
+              <h2 className="text-2xl md:text-3xl font-bold text-foreground mb-3">
+                Hi, welcome to Sales & Orders Tracker!
+              </h2>
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                Your all-in-one platform for managing quotes, purchase orders, waybills, invoices, expense tickets, and project tracking across every department. Sign in to access your personalised dashboard.
+              </p>
+            </div>
+            {/* Decorative elements */}
+            <div className="absolute right-4 top-4 bottom-4 w-1/3 hidden md:flex items-center justify-center opacity-20">
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-24 h-3 bg-primary rounded-sm" />
+                  <div className="w-16 h-3 bg-primary/60 rounded-sm" />
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-12 h-3 bg-primary/40 rounded-sm" />
+                  <div className="w-20 h-3 bg-primary rounded-sm" />
+                  <div className="w-8 h-3 bg-primary/60 rounded-sm" />
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-16 h-3 bg-primary/60 rounded-sm" />
+                  <div className="w-24 h-3 bg-primary/40 rounded-sm" />
+                </div>
+                <div className="flex gap-2 mt-4">
+                  <BarChart3 className="h-10 w-10 text-primary" />
+                  <FileText className="h-10 w-10 text-primary/70" />
+                  <ShoppingCart className="h-10 w-10 text-primary/50" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Department Overview Cards */}
+          <div>
+            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Department Modules</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              {departments.map((dept) => (
+                <div key={dept.name} className={`bg-card border-l-4 ${dept.color} p-4 rounded-sm shadow-sm`}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <dept.icon className="h-5 w-5 text-foreground" />
+                    <span className="font-semibold text-sm text-foreground">{dept.name}</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground leading-relaxed">{dept.description}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Interactive Demo Preview */}
           <div className="space-y-1">
-            <h2 className="text-xl font-semibold text-foreground">Dashboard Preview</h2>
-            <p className="text-sm text-muted-foreground">A preview of your department workspace — sign in to access your live dashboard.</p>
+            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Dashboard Preview</h3>
+            <p className="text-xs text-muted-foreground">A preview of your department workspace — sign in to access your live dashboard.</p>
           </div>
 
           {/* Demo BC Ribbon */}
