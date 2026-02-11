@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { LogOut, FileText, Upload, Search, Package, Truck, Receipt, FolderKanban, FileCheck, CreditCard, Settings, Plus, RefreshCw } from "lucide-react";
 import DashboardLayout from "@/components/layout/DashboardLayout";
+import WelcomeHeader from "@/components/layout/WelcomeHeader";
 import CueTile from "@/components/bc/CueTile";
 import ActionRibbon, { RibbonGroup } from "@/components/bc/ActionRibbon";
 import FactBox from "@/components/bc/FactBox";
@@ -233,6 +234,28 @@ const Dashboard = () => {
     ];
   };
 
+  const getWelcomeDescription = () => {
+    switch (userRole.department_role) {
+      case "sales": return "Manage quotes, customer POs, and distributor quotes. Track your sales pipeline.";
+      case "orders": return "Process company POs, create waybills, and manage deliveries.";
+      case "finance": return "Generate invoices, manage expense payments, and track financial workflows.";
+      case "projects": return "Track project progress, upload documentation, and mark completions.";
+      case "admin": return "Manage users, monitor workflows, and oversee all department activities.";
+      default: return "Welcome to your dashboard.";
+    }
+  };
+
+  const getWelcomeFeatures = () => {
+    switch (userRole.department_role) {
+      case "sales": return ["Upload Quotes", "Link Customer POs", "Track Orders"];
+      case "orders": return ["Company POs", "Waybills", "Deliveries"];
+      case "finance": return ["Invoices", "Expense Payments", "Order Lookup"];
+      case "projects": return ["Manage Projects", "Upload Docs", "Track Status"];
+      case "admin": return ["User Management", "Workflows", "Reports"];
+      default: return [];
+    }
+  };
+
   const ribbonGroups = getRibbonGroups();
 
   return (
@@ -241,6 +264,12 @@ const Dashboard = () => {
       ribbon={ribbonGroups.length > 0 ? <ActionRibbon groups={ribbonGroups} /> : undefined}
     >
       <div className="space-y-4 relative">
+        {/* Greeting Card */}
+        <WelcomeHeader
+          pageDescription={getWelcomeDescription()}
+          features={getWelcomeFeatures()}
+        />
+
         {/* KPI Cue Tiles */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           {getCueTiles().map((tile) => (

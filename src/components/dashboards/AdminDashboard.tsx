@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { UserPlus, Users, FileText, ShoppingCart, Truck, Receipt, Download, KeyRound, Search, Trash2, Eye } from "lucide-react";
 import { ExpenseWorkflowVisual } from "@/components/workflow/ExpenseWorkflowVisual";
 import { WorkflowVisual } from "@/components/workflow/WorkflowVisual";
+import WelcomeHeader from "@/components/layout/WelcomeHeader";
 
 const AdminDashboard = () => {
   const { toast } = useToast();
@@ -372,6 +373,10 @@ const AdminDashboard = () => {
 
   return (
     <div className="space-y-6">
+      <WelcomeHeader
+        pageDescription="Manage users, monitor workflows, and oversee all department activities."
+        features={["User Management", "Workflows", "Expenses", "Reports"]}
+      />
       <div className="flex items-center justify-between">
         <h2 className="text-3xl font-bold">Admin Dashboard</h2>
         <div className="flex gap-2">
