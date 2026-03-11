@@ -450,7 +450,7 @@ const FinanceDashboard = () => {
               </Button>
 
               {allOrders?.length === 0 && (
-                <div className="flex items-center gap-2 p-4 bg-yellow-50 dark:bg-yellow-950 text-yellow-900 dark:text-yellow-100 rounded-lg">
+                <div className="flex items-center gap-2 p-4 bg-accent text-accent-foreground rounded-lg">
                   <AlertCircle className="h-5 w-5" />
                   <div className="text-sm">No orders with company POs available for invoicing.</div>
                 </div>
