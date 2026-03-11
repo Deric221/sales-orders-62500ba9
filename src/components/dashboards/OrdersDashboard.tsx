@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Upload, Package, FileText, Download, Search, Eye } from "lucide-react";
+import { Upload, Package, FileText, Download, Search, Eye, Plus, Building2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { WaybillTemplate } from "@/components/waybill/WaybillTemplate";
 import { Badge } from "@/components/ui/badge";
@@ -33,7 +33,8 @@ const OrdersDashboard = () => {
   const [companyPOFile, setCompanyPOFile] = useState<File | null>(null);
   const [needsProject, setNeedsProject] = useState(false);
   
-  const [selectedCompanyPO, setSelectedCompanyPO] = useState("");
+  // Waybill now tied to Customer PO
+  const [selectedCustomerPOForWaybill, setSelectedCustomerPOForWaybill] = useState("");
   const [waybillNumber, setWaybillNumber] = useState("");
   const [waybillItems, setWaybillItems] = useState<Array<{ qty: string; reference: string; description: string }>>([
     { qty: "", reference: "", description: "" }
@@ -48,6 +49,19 @@ const OrdersDashboard = () => {
   const [selectedCompanyPOForDist, setSelectedCompanyPOForDist] = useState("");
   const [distInvoiceNumber, setDistInvoiceNumber] = useState("");
   const [distInvoiceFile, setDistInvoiceFile] = useState<File | null>(null);
+
+  // Distributor management
+  const [showAddDistributor, setShowAddDistributor] = useState(false);
+  const [newDistributorName, setNewDistributorName] = useState("");
+
+  const { data: distributors } = useQuery({
+    queryKey: ["distributors"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("distributors").select("*").order("name");
+      if (error) throw error;
+      return data;
+    },
+  });
 
   const { data: customerPOs } = useQuery({
     queryKey: ["customer-pos"],
@@ -100,10 +114,8 @@ const OrdersDashboard = () => {
 
   const downloadFile = async (filePath: string, fileName: string) => {
     try {
-      console.log('Attempting to download:', filePath);
       const { data, error } = await supabase.storage.from("documents").download(filePath);
       if (error) {
-        console.error('Download error:', error);
         toast({ variant: "destructive", title: "Download failed", description: error.message });
         return;
       }
@@ -116,7 +128,6 @@ const OrdersDashboard = () => {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } catch (err: any) {
-      console.error('Download exception:', err);
       toast({ variant: "destructive", title: "Download failed", description: err.message || 'Unknown error' });
     }
   };
@@ -135,6 +146,26 @@ const OrdersDashboard = () => {
       toast({ variant: "destructive", title: "View failed", description: err.message || 'Unknown error' });
     }
   };
+
+  const addDistributorMutation = useMutation({
+    mutationFn: async () => {
+      if (!newDistributorName.trim() || !user) throw new Error("Distributor name is required");
+      const { error } = await supabase.from("distributors").insert({
+        name: newDistributorName.trim(),
+        created_by: user.id,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast({ title: "Distributor added successfully" });
+      queryClient.invalidateQueries({ queryKey: ["distributors"] });
+      setNewDistributorName("");
+      setShowAddDistributor(false);
+    },
+    onError: (error: any) => {
+      toast({ variant: "destructive", title: "Error", description: error.message });
+    },
+  });
 
   const uploadCompanyPOMutation = useMutation({
     mutationFn: async () => {
@@ -162,11 +193,9 @@ const OrdersDashboard = () => {
 
       if (insertError) throw insertError;
 
-      // Advance workflow to company_po_uploaded
       const relatedCPO: any = customerPOs?.find((po: any) => po.id === selectedCustomerPO);
       const quoteId = relatedCPO?.quote_id;
       if (quoteId) {
-        // If needs project, create via secure edge function
         let projectId = null;
         if (needsProject) {
           const customerName = relatedCPO?.quotes?.customer_name || "Unknown";
@@ -174,21 +203,11 @@ const OrdersDashboard = () => {
           
           const { data: projectData, error: projectError } = await supabase.functions.invoke(
             'create-project-from-order',
-            {
-              body: {
-                customerName,
-                quoteNumber,
-              },
-            }
+            { body: { customerName, quoteNumber } }
           );
           
           if (projectError) {
-            console.error('Error creating project:', projectError);
-            toast({
-              title: "Warning",
-              description: "Company PO uploaded but project creation failed. Please create project manually.",
-              variant: "destructive",
-            });
+            toast({ title: "Warning", description: "Company PO uploaded but project creation failed.", variant: "destructive" });
           } else if (projectData?.project) {
             projectId = projectData.project.id;
           }
@@ -196,45 +215,22 @@ const OrdersDashboard = () => {
         
         const { error: wfUpdateError } = await supabase
           .from("workflow_tracker")
-          .update({ 
-            company_po_id: insertedCompanyPO.id, 
-            current_stage: "company_po_uploaded",
-            project_id: projectId
-          })
+          .update({ company_po_id: insertedCompanyPO.id, current_stage: "company_po_uploaded", project_id: projectId })
           .eq("quote_id", quoteId);
         if (wfUpdateError) throw wfUpdateError;
 
-        // Create in-app notifications for Orders team
         try {
-          const { data: ordersUsers } = await supabase
-            .from("user_roles")
-            .select("user_id")
-            .eq("department_role", "orders");
-          
+          const { data: ordersUsers } = await supabase.from("user_roles").select("user_id").eq("department_role", "orders");
           if (ordersUsers && ordersUsers.length > 0) {
             const notifications = ordersUsers.map(u => ({
               user_id: u.user_id,
               title: "Company PO Created - Awaiting Waybill",
-              message: `Company PO created for quote ${relatedCPO?.quotes?.quote_number || companyPONumber} (${relatedCPO?.quotes?.customer_name || "Unknown"}). Please create waybill.`,
+              message: `Company PO created for quote ${relatedCPO?.quotes?.quote_number || companyPONumber}. Please create waybill.`,
               related_type: "workflow",
               related_id: quoteId,
             }));
-            
             await createNotifications(notifications);
           }
-
-          const { data: session } = await supabase.auth.getSession();
-          await supabase.functions.invoke('send-workflow-notification', {
-            body: {
-              workflowId: quoteId,
-              stage: 'company_po_uploaded',
-              quoteNumber: relatedCPO?.quotes?.quote_number || companyPONumber,
-              customerName: relatedCPO?.quotes?.customer_name || "Unknown",
-            },
-            headers: {
-              Authorization: `Bearer ${session?.session?.access_token}`,
-            },
-          }).catch(err => console.log('Email notification failed (expected if domain not verified):', err));
         } catch (notifyError) {
           console.error('Notification error:', notifyError);
         }
@@ -307,39 +303,30 @@ const OrdersDashboard = () => {
 
   const createWaybillMutation = useMutation({
     mutationFn: async () => {
-      if (!user || !selectedCompanyPO) throw new Error("Missing required data");
+      if (!user || !selectedCustomerPOForWaybill) throw new Error("Missing required data");
 
-      // Generate PDF from waybill template
+      // Find the company PO linked to this customer PO
+      const relatedCompanyPO = companyPOs?.find((cpo: any) => cpo.customer_po_id === selectedCustomerPOForWaybill);
+      if (!relatedCompanyPO) throw new Error("No company PO found for this customer PO");
+
       const waybillElement = document.getElementById('waybill-preview-content');
       if (!waybillElement) throw new Error("Waybill template not found");
 
       const canvas = await html2canvas(waybillElement, { 
-        scale: 2,
-        useCORS: true,
-        logging: false,
-        width: waybillElement.scrollWidth,
-        height: waybillElement.scrollHeight
+        scale: 2, useCORS: true, logging: false,
+        width: waybillElement.scrollWidth, height: waybillElement.scrollHeight
       });
       const imgData = canvas.toDataURL('image/png');
       
-      const pdf = new jsPDF({
-        orientation: 'portrait',
-        unit: 'mm',
-        format: 'a4'
-      });
-      
-      const imgWidth = 210; // A4 width in mm
-      const pageHeight = 297; // A4 height in mm
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const imgWidth = 210;
+      const pageHeight = 297;
       const imgHeight = (canvas.height * imgWidth) / canvas.width;
       
       let heightLeft = imgHeight;
       let position = 0;
-      
-      // Add first page
       pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
       heightLeft -= pageHeight;
-      
-      // Add additional pages if needed
       while (heightLeft > 0) {
         position = heightLeft - imgHeight;
         pdf.addPage();
@@ -351,25 +338,15 @@ const OrdersDashboard = () => {
       const fileName = `waybill_${waybillNumber}_${Date.now()}.pdf`;
       const filePath = `${user.id}/${fileName}`;
 
-      // Upload PDF to storage
-      const { error: uploadError } = await supabase.storage
-        .from('documents')
-        .upload(filePath, pdfBlob);
-
+      const { error: uploadError } = await supabase.storage.from('documents').upload(filePath, pdfBlob);
       if (uploadError) throw uploadError;
 
-      const productDetails = waybillItems
-        .filter(item => item.description)
-        .map(item => `${item.qty} ${item.reference} - ${item.description}`)
-        .join("; ");
+      const productDetails = waybillItems.filter(item => item.description)
+        .map(item => `${item.qty} ${item.reference} - ${item.description}`).join("; ");
+      const serialNumbers = waybillItems.filter(item => item.reference).map(item => item.reference);
 
-      const serialNumbers = waybillItems
-        .filter(item => item.reference)
-        .map(item => item.reference);
-
-      // Create waybill
       const { data: waybill, error } = await supabase.from("waybills").insert({
-        company_po_id: selectedCompanyPO,
+        company_po_id: relatedCompanyPO.id,
         waybill_number: waybillNumber,
         product_details: productDetails,
         serial_numbers: serialNumbers,
@@ -381,33 +358,24 @@ const OrdersDashboard = () => {
 
       if (error) throw error;
 
-      // Create waybill items for delivery tracking
-      const waybillItemsToInsert = waybillItems
-        .filter(item => item.description)
-        .map(item => ({
-          waybill_id: waybill.id,
-          company_po_id: selectedCompanyPO,
-          quantity: parseInt(item.qty) || 1,
-          reference: item.reference || null,
-          serial_number: item.reference || null, // Use reference as serial for now
-          description: item.description,
-        }));
+      const waybillItemsToInsert = waybillItems.filter(item => item.description).map(item => ({
+        waybill_id: waybill.id,
+        company_po_id: relatedCompanyPO.id,
+        quantity: parseInt(item.qty) || 1,
+        reference: item.reference || null,
+        serial_number: item.reference || null,
+        description: item.description,
+      }));
 
       if (waybillItemsToInsert.length > 0) {
-        const { error: itemsError } = await supabase
-          .from("waybill_items")
-          .insert(waybillItemsToInsert);
-        
-        if (itemsError) {
-          console.error("Error creating waybill items:", itemsError);
-        }
+        const { error: itemsError } = await supabase.from("waybill_items").insert(waybillItemsToInsert);
+        if (itemsError) console.error("Error creating waybill items:", itemsError);
       }
 
-      // Advance workflow to waybill_created
-      const relatedCompanyPO: any = companyPOs?.find((po: any) => po.id === selectedCompanyPO);
-      const quoteIdWB = relatedCompanyPO?.customer_pos?.quote_id;
+      // Advance workflow
+      const relatedCPO: any = customerPOs?.find((po: any) => po.id === selectedCustomerPOForWaybill);
+      const quoteIdWB = relatedCPO?.quote_id;
       if (quoteIdWB) {
-        // Check if this workflow has a project
         const { data: workflow } = await supabase
           .from("workflow_tracker")
           .select("project_id, quotes(quote_number, customer_name)")
@@ -415,50 +383,22 @@ const OrdersDashboard = () => {
           .single();
         
         const newStage = workflow?.project_id ? "awaiting_project_completion" : "waybill_created";
-        
-        const { error: wfErr } = await supabase
-          .from("workflow_tracker")
-          .update({ current_stage: newStage })
-          .eq("quote_id", quoteIdWB);
-        if (wfErr) throw wfErr;
+        await supabase.from("workflow_tracker").update({ current_stage: newStage }).eq("quote_id", quoteIdWB);
 
-        // Create in-app notifications based on project existence
         const targetRole = workflow?.project_id ? 'projects' : 'finance';
         try {
-          const { data: targetUsers } = await supabase
-            .from("user_roles")
-            .select("user_id")
-            .eq("department_role", targetRole);
-          
+          const { data: targetUsers } = await supabase.from("user_roles").select("user_id").eq("department_role", targetRole);
           if (targetUsers && targetUsers.length > 0) {
             const message = workflow?.project_id
-              ? `Waybill created for quote ${workflow?.quotes?.quote_number || waybillNumber} (${workflow?.quotes?.customer_name || "Unknown"}). A project is assigned to this order. Please proceed with project implementation.`
-              : `Waybill created for quote ${workflow?.quotes?.quote_number || waybillNumber} (${workflow?.quotes?.customer_name || "Unknown"}). This order has no project and is ready for invoice generation.`;
-            
+              ? `Waybill created for quote ${workflow?.quotes?.quote_number}. Project implementation required.`
+              : `Waybill created for quote ${workflow?.quotes?.quote_number}. Ready for invoice generation.`;
             const notifications = targetUsers.map(u => ({
               user_id: u.user_id,
               title: workflow?.project_id ? "New Project Assignment" : "Waybill Created - Ready for Invoice",
-              message,
-              related_type: "workflow",
-              related_id: quoteIdWB,
+              message, related_type: "workflow", related_id: quoteIdWB,
             }));
-            
             await createNotifications(notifications);
           }
-
-          const targetStage = workflow?.project_id ? 'waybill_created_with_project' : 'waybill_created';
-          const { data: session } = await supabase.auth.getSession();
-          await supabase.functions.invoke('send-workflow-notification', {
-            body: {
-              workflowId: quoteIdWB,
-              stage: targetStage,
-              quoteNumber: workflow?.quotes?.quote_number || waybillNumber,
-              customerName: workflow?.quotes?.customer_name || "Unknown",
-            },
-            headers: {
-              Authorization: `Bearer ${session?.session?.access_token}`,
-            },
-          }).catch(err => console.log('Email notification failed (expected if domain not verified):', err));
         } catch (notifyError) {
           console.error('Notification error:', notifyError);
         }
@@ -468,7 +408,7 @@ const OrdersDashboard = () => {
       toast({ title: "Waybill created successfully" });
       queryClient.invalidateQueries({ queryKey: ["waybills"] });
       setShowWaybillPreview(false);
-      setSelectedCompanyPO("");
+      setSelectedCustomerPOForWaybill("");
       setWaybillNumber("");
       setWaybillItems([{ qty: "", reference: "", description: "" }]);
       setToName("");
@@ -478,6 +418,19 @@ const OrdersDashboard = () => {
     onError: (error: any) => {
       toast({ variant: "destructive", title: "Error", description: error.message });
     },
+  });
+
+  // Get selected items for view buttons
+  const selectedCPO = customerPOs?.find((po: any) => po.id === selectedCustomerPO);
+  const selectedCPOForWB = customerPOs?.find((po: any) => po.id === selectedCustomerPOForWaybill);
+  const selectedCompanyPOObj = companyPOs?.find((po: any) => po.id === selectedCompanyPOForDist);
+
+  // Customer POs available for waybill (must have a company PO and no waybill yet)
+  const customerPOsForWaybill = customerPOs?.filter((cpo: any) => {
+    const hasCompanyPO = companyPOs?.some((companyPO: any) => companyPO.customer_po_id === cpo.id);
+    const relatedCompanyPO = companyPOs?.find((companyPO: any) => companyPO.customer_po_id === cpo.id);
+    const hasWaybill = relatedCompanyPO ? waybills?.some((wb: any) => wb.company_po_id === relatedCompanyPO.id) : false;
+    return hasCompanyPO && !hasWaybill;
   });
 
   return (
@@ -512,10 +465,7 @@ const OrdersDashboard = () => {
                 <option value="">Select customer PO...</option>
                 {customerPOs
                   ?.filter((po) => {
-                    // Filter out customer POs that already have a company PO
-                    const hasCompanyPO = companyPOs?.some(
-                      (companyPO) => companyPO.customer_po_id === po.id
-                    );
+                    const hasCompanyPO = companyPOs?.some((companyPO) => companyPO.customer_po_id === po.id);
                     return !hasCompanyPO;
                   })
                   .map((po) => (
@@ -525,6 +475,11 @@ const OrdersDashboard = () => {
                   ))}
               </select>
             </div>
+            {selectedCPO && (
+              <Button type="button" variant="outline" size="sm" onClick={() => viewFile(selectedCPO.file_path)}>
+                <Eye className="h-4 w-4 mr-1" /> View Selected Customer PO
+              </Button>
+            )}
             <div className="space-y-2">
               <Label htmlFor="company-po-number">Company PO Number</Label>
               <Input
@@ -535,13 +490,32 @@ const OrdersDashboard = () => {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="distributor-name">Distributor Name</Label>
-              <Input
-                id="distributor-name"
-                value={distributorName}
-                onChange={(e) => setDistributorName(e.target.value)}
-                placeholder="XYZ Distributors"
-              />
+              <div className="flex items-center justify-between">
+                <Label htmlFor="distributor-name">Distributor Name</Label>
+                <Button type="button" variant="ghost" size="sm" onClick={() => setShowAddDistributor(true)} className="h-7 text-xs">
+                  <Plus className="h-3 w-3 mr-1" /> New Distributor
+                </Button>
+              </div>
+              {distributors && distributors.length > 0 ? (
+                <select
+                  id="distributor-name"
+                  className="w-full h-10 px-3 py-2 border border-input bg-background rounded-md"
+                  value={distributorName}
+                  onChange={(e) => setDistributorName(e.target.value)}
+                >
+                  <option value="">Select a distributor...</option>
+                  {distributors.map((d) => (
+                    <option key={d.id} value={d.name}>{d.name}</option>
+                  ))}
+                </select>
+              ) : (
+                <Input
+                  id="distributor-name"
+                  value={distributorName}
+                  onChange={(e) => setDistributorName(e.target.value)}
+                  placeholder="XYZ Distributors"
+                />
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="company-po-file">Company PO PDF</Label>
@@ -578,23 +552,27 @@ const OrdersDashboard = () => {
         <Card>
           <CardHeader>
             <CardTitle>Create Waybill</CardTitle>
-            <CardDescription>Generate professional waybill document</CardDescription>
+            <CardDescription>Generate waybill from a customer PO</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="select-company-po">Select Company PO</Label>
+              <Label htmlFor="select-customer-po-wb">Select Customer PO</Label>
               <select
-                id="select-company-po"
+                id="select-customer-po-wb"
                 className="w-full h-10 px-3 py-2 border border-input bg-background rounded-md"
-                value={selectedCompanyPO}
+                value={selectedCustomerPOForWaybill}
                 onChange={async (e) => {
-                  const poId = e.target.value;
-                  setSelectedCompanyPO(poId);
+                  const cpoId = e.target.value;
+                  setSelectedCustomerPOForWaybill(cpoId);
                   
-                  // Auto-populate waybill form from Company PO data
-                  if (poId) {
-                    const selectedPO = companyPOs?.find(po => po.id === poId);
-                    if (selectedPO) {
+                  if (cpoId) {
+                    const selectedCPO = customerPOs?.find((po: any) => po.id === cpoId);
+                    const relatedCompanyPO = companyPOs?.find((cpo: any) => cpo.customer_po_id === cpoId);
+                    
+                    if (selectedCPO && relatedCompanyPO) {
+                      // Auto-fill customer name
+                      setToName(selectedCPO.quotes?.customer_name || '');
+                      
                       // Auto-generate waybill number
                       const currentYear = new Date().getFullYear();
                       const { data: yearWaybills } = await supabase
@@ -610,75 +588,40 @@ const OrdersDashboard = () => {
                           if (num > maxNumber) maxNumber = num;
                         }
                       });
-                      
                       const nextNumber = (maxNumber + 1).toString().padStart(4, '0');
                       setWaybillNumber(`WB-${currentYear}-${nextNumber}`);
-                      
-                      // Parse Company PO PDF to extract customer details and items
-                      if (selectedPO.file_path) {
+
+                      // Parse customer PO document for items
+                      if (selectedCPO.file_path) {
                         setIsParsingPO(true);
-                        setWaybillItems([{ qty: "", reference: "", description: "Parsing PDF..." }]);
-                        
+                        setWaybillItems([{ qty: "", reference: "", description: "Parsing document..." }]);
                         try {
                           const { data, error } = await supabase.functions.invoke('parse-company-po', {
-                            body: { 
-                              companyPoId: selectedPO.id,
-                              filePath: selectedPO.file_path 
-                            }
+                            body: { companyPoId: relatedCompanyPO.id, filePath: selectedCPO.file_path }
                           });
-                          
                           if (error) {
-                            console.error("Error parsing PO:", error);
-                            toast({
-                              title: "PDF Parsing Failed",
-                              description: "Could not parse PDF. Please enter items manually.",
-                              variant: "destructive"
-                            });
-                            setToName('');
-                            setToAddress('');
+                            toast({ title: "PDF Parsing Failed", description: "Please enter items manually.", variant: "destructive" });
                             setWaybillItems([{ qty: "1", reference: "", description: "" }]);
-                          } else if (data) {
-                            // Set customer name and address from parsed PDF
-                            setToName(data.customerName || '');
-                            setToAddress(data.customerAddress || '');
-                            
-                            // Map items: qty -> qty, serialNumber -> description
-                            if (data.items && data.items.length > 0) {
-                              const mappedItems = data.items.map((item: { qty: string; serialNumber: string }) => ({
-                                qty: item.qty || "1",
-                                reference: "", // No reference field from PDF
-                                description: item.serialNumber || "" // Serial number maps to description
-                              }));
-                              setWaybillItems(mappedItems);
-                              toast({
-                                title: "PDF Parsed Successfully",
-                                description: `Extracted ${data.items.length} item(s) from the Company PO.`
-                              });
-                            } else {
-                              setWaybillItems([{ qty: "1", reference: "", description: "" }]);
-                            }
+                          } else if (data?.items && data.items.length > 0) {
+                            const mappedItems = data.items.map((item: any) => ({
+                              qty: item.qty?.toString() || "1",
+                              reference: "",
+                              description: item.serialNumber || item.description || "",
+                            }));
+                            setWaybillItems(mappedItems);
+                            if (data.customerAddress) setToAddress(data.customerAddress);
+                            toast({ title: "Document parsed successfully", description: `Found ${data.items.length} item(s)` });
                           } else {
-                            setToName('');
-                            setToAddress('');
                             setWaybillItems([{ qty: "1", reference: "", description: "" }]);
                           }
                         } catch (parseError) {
-                          console.error("Parse error:", parseError);
-                          setToName('');
-                          setToAddress('');
                           setWaybillItems([{ qty: "1", reference: "", description: "" }]);
                         } finally {
                           setIsParsingPO(false);
                         }
-                      } else {
-                        // No file path, use default empty values
-                        setToName('');
-                        setToAddress('');
-                        setWaybillItems([{ qty: "1", reference: "", description: "" }]);
                       }
                     }
                   } else {
-                    // Reset form when no PO selected
                     setToName('');
                     setToAddress('');
                     setWaybillNumber('');
@@ -686,156 +629,84 @@ const OrdersDashboard = () => {
                   }
                 }}
               >
-                <option value="">Select company PO...</option>
-                {companyPOs?.map((po) => (
+                <option value="">Select customer PO...</option>
+                {customerPOsForWaybill?.map((po: any) => (
                   <option key={po.id} value={po.id}>
-                    {po.po_number} - {po.distributor_name} ({po.customer_pos?.quotes?.customer_name || 'Unknown'})
+                    {po.po_number} - {po.quotes?.customer_name}
                   </option>
                 ))}
               </select>
             </div>
             
-            {/* Selected PO Details Preview */}
-            {selectedCompanyPO && (() => {
-              const selectedPO = companyPOs?.find(po => po.id === selectedCompanyPO);
-              if (!selectedPO) return null;
+            {selectedCPOForWB && (
+              <div className="flex gap-2">
+                <Button type="button" variant="outline" size="sm" onClick={() => viewFile(selectedCPOForWB.file_path)}>
+                  <Eye className="h-4 w-4 mr-1" /> View Customer PO
+                </Button>
+                {(() => {
+                  const relatedCoPO = companyPOs?.find((cpo: any) => cpo.customer_po_id === selectedCPOForWB.id);
+                  return relatedCoPO ? (
+                    <Button type="button" variant="outline" size="sm" onClick={() => viewFile(relatedCoPO.file_path)}>
+                      <Eye className="h-4 w-4 mr-1" /> View Company PO
+                    </Button>
+                  ) : null;
+                })()}
+              </div>
+            )}
+
+            {selectedCustomerPOForWaybill && (() => {
+              const relatedCoPO = companyPOs?.find((cpo: any) => cpo.customer_po_id === selectedCustomerPOForWaybill);
+              if (!relatedCoPO) return null;
               return (
                 <div className="p-4 bg-muted rounded-lg space-y-2">
                   <div className="font-medium text-sm">Order Details (Auto-populated)</div>
                   <div className="grid grid-cols-2 gap-2 text-sm">
-                    <div>
-                      <span className="text-muted-foreground">Customer:</span>{' '}
-                      <span className="font-medium">{selectedPO.customer_pos?.quotes?.customer_name || 'N/A'}</span>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">Quote #:</span>{' '}
-                      <span className="font-medium">{selectedPO.customer_pos?.quotes?.quote_number || 'N/A'}</span>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">Customer PO:</span>{' '}
-                      <span className="font-medium">{selectedPO.customer_pos?.po_number || 'N/A'}</span>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">Company PO:</span>{' '}
-                      <span className="font-medium">{selectedPO.po_number}</span>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">Distributor:</span>{' '}
-                      <span className="font-medium">{selectedPO.distributor_name}</span>
-                    </div>
-                  </div>
-                  <div className="text-xs text-muted-foreground mt-2">
-                    You can edit the waybill details below before creating.
+                    <div><span className="text-muted-foreground">Customer:</span> <span className="font-medium">{selectedCPOForWB?.quotes?.customer_name || 'N/A'}</span></div>
+                    <div><span className="text-muted-foreground">Quote #:</span> <span className="font-medium">{selectedCPOForWB?.quotes?.quote_number || 'N/A'}</span></div>
+                    <div><span className="text-muted-foreground">Customer PO:</span> <span className="font-medium">{selectedCPOForWB?.po_number || 'N/A'}</span></div>
+                    <div><span className="text-muted-foreground">Company PO:</span> <span className="font-medium">{relatedCoPO.po_number}</span></div>
+                    <div><span className="text-muted-foreground">Distributor:</span> <span className="font-medium">{relatedCoPO.distributor_name}</span></div>
                   </div>
                 </div>
               );
             })()}
+
             <div className="space-y-2">
               <Label htmlFor="waybill-number">Waybill Number</Label>
-              <div className="flex gap-2">
-                <Input
-                  id="waybill-number"
-                  value={waybillNumber}
-                  onChange={(e) => setWaybillNumber(e.target.value)}
-                  placeholder="WB-2025-0001"
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={async () => {
-                    const currentYear = new Date().getFullYear();
-                    
-                    // Fetch all waybills for current year
-                    const { data: yearWaybills } = await supabase
-                      .from("waybills")
-                      .select("waybill_number")
-                      .like("waybill_number", `WB-${currentYear}-%`);
-                    
-                    // Find the highest number
-                    let maxNumber = 0;
-                    yearWaybills?.forEach((wb) => {
-                      const match = wb.waybill_number.match(/WB-\d{4}-(\d+)/);
-                      if (match) {
-                        const num = parseInt(match[1], 10);
-                        if (num > maxNumber) maxNumber = num;
-                      }
-                    });
-                    
-                    // Generate next number with leading zeros
-                    const nextNumber = (maxNumber + 1).toString().padStart(4, '0');
-                    setWaybillNumber(`WB-${currentYear}-${nextNumber}`);
-                  }}
-                >
-                  Auto-Generate
-                </Button>
-              </div>
+              <Input
+                id="waybill-number"
+                value={waybillNumber}
+                onChange={(e) => setWaybillNumber(e.target.value)}
+                placeholder="WB-2025-0001"
+              />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="to-name">To (Name)</Label>
-                <Input
-                  id="to-name"
-                  value={toName}
-                  onChange={(e) => setToName(e.target.value)}
-                  placeholder="Company/Person name"
-                />
+                <Input id="to-name" value={toName} onChange={(e) => setToName(e.target.value)} placeholder="Company/Person name" />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="to-address">Address</Label>
-                <Input
-                  id="to-address"
-                  value={toAddress}
-                  onChange={(e) => setToAddress(e.target.value)}
-                  placeholder="Delivery address"
-                />
+                <Input id="to-address" value={toAddress} onChange={(e) => setToAddress(e.target.value)} placeholder="Delivery address" />
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="issued-by">Issued By (Your Name)</Label>
-              <Input
-                id="issued-by"
-                value={issuedBy}
-                onChange={(e) => setIssuedBy(e.target.value)}
-                placeholder="Your name"
-              />
+              <Label htmlFor="issued-by">Issued By</Label>
+              <Input id="issued-by" value={issuedBy} onChange={(e) => setIssuedBy(e.target.value)} placeholder="Your name" />
             </div>
             
             <div className="space-y-2">
               <div className="flex justify-between items-center">
                 <Label>Waybill Items</Label>
-                <Button type="button" variant="outline" size="sm" onClick={addWaybillItem}>
-                  Add Item
-                </Button>
+                <Button type="button" variant="outline" size="sm" onClick={addWaybillItem}>Add Item</Button>
               </div>
               {waybillItems.map((item, index) => (
                 <div key={index} className="flex gap-2 items-start">
-                  <Input
-                    placeholder="QTY"
-                    value={item.qty}
-                    onChange={(e) => updateWaybillItem(index, "qty", e.target.value)}
-                    className="w-20"
-                  />
-                  <Input
-                    placeholder="Reference/Serial"
-                    value={item.reference}
-                    onChange={(e) => updateWaybillItem(index, "reference", e.target.value)}
-                    className="w-40"
-                  />
-                  <Input
-                    placeholder="Description"
-                    value={item.description}
-                    onChange={(e) => updateWaybillItem(index, "description", e.target.value)}
-                    className="flex-1"
-                  />
+                  <Input placeholder="QTY" value={item.qty} onChange={(e) => updateWaybillItem(index, "qty", e.target.value)} className="w-20" />
+                  <Input placeholder="Reference/Serial" value={item.reference} onChange={(e) => updateWaybillItem(index, "reference", e.target.value)} className="w-40" />
+                  <Input placeholder="Description" value={item.description} onChange={(e) => updateWaybillItem(index, "description", e.target.value)} className="flex-1" />
                   {waybillItems.length > 1 && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => removeWaybillItem(index)}
-                    >
-                      Remove
-                    </Button>
+                    <Button type="button" variant="outline" size="sm" onClick={() => removeWaybillItem(index)}>Remove</Button>
                   )}
                 </div>
               ))}
@@ -843,7 +714,7 @@ const OrdersDashboard = () => {
 
             <Button
               onClick={() => setShowWaybillPreview(true)}
-              disabled={!selectedCompanyPO || !waybillNumber || !toName}
+              disabled={!selectedCustomerPOForWaybill || !waybillNumber || !toName}
               className="w-full"
             >
               <Package className="mr-2 h-4 w-4" />
@@ -875,6 +746,18 @@ const OrdersDashboard = () => {
               ))}
             </select>
           </div>
+          {selectedCompanyPOObj && (
+            <div className="flex gap-2">
+              <Button type="button" variant="outline" size="sm" onClick={() => viewFile(selectedCompanyPOObj.file_path)}>
+                <Eye className="h-4 w-4 mr-1" /> View Company PO
+              </Button>
+              {selectedCompanyPOObj.customer_pos?.file_path && (
+                <Button type="button" variant="outline" size="sm" onClick={() => viewFile(selectedCompanyPOObj.customer_pos.file_path)}>
+                  <Eye className="h-4 w-4 mr-1" /> View Customer PO
+                </Button>
+              )}
+            </div>
+          )}
           <div className="space-y-2">
             <Label htmlFor="dist-invoice-number">Distributor Invoice Number</Label>
             <Input
@@ -919,88 +802,56 @@ const OrdersDashboard = () => {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-3">
-            {customerPOs
-              ?.slice(0, 10)
-              .map((po) => {
-                const relatedCompanyPO = companyPOs?.find((cpo) => cpo.customer_po_id === po.id);
-                const relatedWaybill = waybills?.find((wb) => 
-                  wb.company_pos?.customer_pos?.id === po.id
-                );
-                
-                // Check if this order has a project
-                const relatedWorkflow = po.workflow_tracker?.[0];
-                const hasProject = relatedWorkflow?.project_id != null;
-                
-                // Determine current status
-                let status = "Customer PO Received";
-                let statusVariant: "default" | "secondary" | "outline" | "destructive" = "outline";
-                
-                if (relatedWaybill) {
-                  if (relatedWaybill.delivery_status === 'fully_delivered') {
-                    status = "Fully Delivered";
-                    statusVariant = "default";
-                  } else if (relatedWaybill.delivery_status === 'partially_delivered') {
-                    status = "Partially Delivered";
-                    statusVariant = "secondary";
-                  } else {
-                    status = "Waybill Created";
-                    statusVariant = "secondary";
-                  }
-                } else if (relatedCompanyPO) {
-                  status = "Company PO Issued";
-                  statusVariant = "outline";
-                }
-                
-                return (
-                  <div key={po.id} className="p-4 border rounded-lg bg-muted/30">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-start gap-3">
-                        <div className="p-2 rounded-full bg-background">
-                          <FileText className="h-4 w-4 text-muted-foreground" />
-                        </div>
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-medium">{po.quotes?.customer_name || 'Unknown Customer'}</span>
-                            <Badge variant={statusVariant} className="text-xs">
-                              {status}
-                            </Badge>
-                            {hasProject && (
-                              <Badge variant="secondary" className="text-xs">
-                                Has Project
-                              </Badge>
-                            )}
-                          </div>
-                          <div className="text-sm text-muted-foreground space-y-0.5">
-                            <div>Quote: {po.quotes?.quote_number} • Customer PO: {po.po_number}</div>
-                            {relatedCompanyPO && (
-                              <div>Company PO: {relatedCompanyPO.po_number} • Distributor: {relatedCompanyPO.distributor_name}</div>
-                            )}
-                            {relatedWaybill && (
-                              <div>
-                                Waybill: {relatedWaybill.waybill_number} • 
-                                Items: {relatedWaybill.total_items_delivered || 0}/{relatedWaybill.total_items_ordered || 0} delivered
-                              </div>
-                            )}
-                          </div>
-                        </div>
+            {customerPOs?.slice(0, 10).map((po) => {
+              const relatedCompanyPO = companyPOs?.find((cpo) => cpo.customer_po_id === po.id);
+              const relatedWaybill = waybills?.find((wb) => wb.company_pos?.customer_pos?.id === po.id);
+              const relatedWorkflow = po.workflow_tracker?.[0];
+              const hasProject = relatedWorkflow?.project_id != null;
+              
+              let status = "Customer PO Received";
+              let statusVariant: "default" | "secondary" | "outline" | "destructive" = "outline";
+              
+              if (relatedWaybill) {
+                if (relatedWaybill.delivery_status === 'fully_delivered') { status = "Fully Delivered"; statusVariant = "default"; }
+                else if (relatedWaybill.delivery_status === 'partially_delivered') { status = "Partially Delivered"; statusVariant = "secondary"; }
+                else { status = "Waybill Created"; statusVariant = "secondary"; }
+              } else if (relatedCompanyPO) {
+                status = "Company PO Issued"; statusVariant = "outline";
+              }
+              
+              return (
+                <div key={po.id} className="p-4 border rounded-lg bg-muted/30">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-start gap-3">
+                      <div className="p-2 rounded-full bg-background">
+                        <FileText className="h-4 w-4 text-muted-foreground" />
                       </div>
-                      <div className="text-xs text-muted-foreground">
-                        {new Date(po.created_at).toLocaleDateString()}
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-medium">{po.quotes?.customer_name || 'Unknown Customer'}</span>
+                          <Badge variant={statusVariant} className="text-xs">{status}</Badge>
+                          {hasProject && <Badge variant="secondary" className="text-xs">Has Project</Badge>}
+                        </div>
+                        <div className="text-sm text-muted-foreground space-y-0.5">
+                          <div>Quote: {po.quotes?.quote_number} • Customer PO: {po.po_number}</div>
+                          {relatedCompanyPO && <div>Company PO: {relatedCompanyPO.po_number} • Distributor: {relatedCompanyPO.distributor_name}</div>}
+                          {relatedWaybill && <div>Waybill: {relatedWaybill.waybill_number} • Items: {relatedWaybill.total_items_delivered || 0}/{relatedWaybill.total_items_ordered || 0} delivered</div>}
+                        </div>
                       </div>
                     </div>
+                    <div className="text-xs text-muted-foreground">{new Date(po.created_at).toLocaleDateString()}</div>
                   </div>
-                );
-              })}
-            
+                </div>
+              );
+            })}
             {(!customerPOs || customerPOs.length === 0) && (
-              <div className="text-center py-8 text-muted-foreground">
-                No orders yet
-              </div>
+              <div className="text-center py-8 text-muted-foreground">No orders yet</div>
             )}
           </div>
         </CardContent>
       </Card>
 
+      {/* Waybill Preview Dialog */}
       <Dialog open={showWaybillPreview} onOpenChange={setShowWaybillPreview}>
         <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -1017,11 +868,38 @@ const OrdersDashboard = () => {
             />
           </div>
           <div className="flex justify-end gap-2 mt-4 print:hidden">
-            <Button variant="outline" onClick={() => setShowWaybillPreview(false)}>
-              Cancel
-            </Button>
+            <Button variant="outline" onClick={() => setShowWaybillPreview(false)}>Cancel</Button>
             <Button onClick={() => createWaybillMutation.mutate()} disabled={createWaybillMutation.isPending}>
               {createWaybillMutation.isPending ? "Creating..." : "Confirm & Create"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Distributor Dialog */}
+      <Dialog open={showAddDistributor} onOpenChange={setShowAddDistributor}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Building2 className="h-5 w-5" />
+              Add New Distributor
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Distributor Name</Label>
+              <Input
+                value={newDistributorName}
+                onChange={(e) => setNewDistributorName(e.target.value)}
+                placeholder="Enter distributor name"
+              />
+            </div>
+            <Button
+              onClick={() => addDistributorMutation.mutate()}
+              disabled={!newDistributorName.trim() || addDistributorMutation.isPending}
+              className="w-full"
+            >
+              {addDistributorMutation.isPending ? "Adding..." : "Add Distributor"}
             </Button>
           </div>
         </DialogContent>

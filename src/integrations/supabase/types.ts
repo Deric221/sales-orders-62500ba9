@@ -132,6 +132,27 @@ export type Database = {
           },
         ]
       }
+      customers: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          name: string
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
       delivery_items: {
         Row: {
           created_at: string | null
@@ -347,6 +368,27 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      distributors: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          name: string
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          name?: string
+        }
+        Relationships: []
       }
       employee_manager_mapping: {
         Row: {
@@ -570,6 +612,7 @@ export type Database = {
       invoices: {
         Row: {
           amount: number
+          comments: string | null
           company_po_id: string
           created_at: string | null
           customer_po_id: string
@@ -578,11 +621,13 @@ export type Database = {
           generated_by: string | null
           id: string
           invoice_number: string
+          invoice_type: string
           quote_id: string
           updated_at: string | null
         }
         Insert: {
           amount: number
+          comments?: string | null
           company_po_id: string
           created_at?: string | null
           customer_po_id: string
@@ -591,11 +636,13 @@ export type Database = {
           generated_by?: string | null
           id?: string
           invoice_number: string
+          invoice_type?: string
           quote_id: string
           updated_at?: string | null
         }
         Update: {
           amount?: number
+          comments?: string | null
           company_po_id?: string
           created_at?: string | null
           customer_po_id?: string
@@ -604,6 +651,7 @@ export type Database = {
           generated_by?: string | null
           id?: string
           invoice_number?: string
+          invoice_type?: string
           quote_id?: string
           updated_at?: string | null
         }

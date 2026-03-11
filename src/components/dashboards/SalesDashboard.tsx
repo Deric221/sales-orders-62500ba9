@@ -5,11 +5,14 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Upload, FileText, Download, Eye } from "lucide-react";
+import { Upload, FileText, Download, Eye, Plus, Users } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { createNotifications } from "@/lib/notifications";
 import WelcomeHeader from "@/components/layout/WelcomeHeader";
+import { WorkflowVisual } from "@/components/workflow/WorkflowVisual";
+import { Badge } from "@/components/ui/badge";
 
 const downloadFile = async (filePath: string, fileName: string, toast: any) => {
   const { data, error } = await supabase.storage.from("documents").download(filePath);
@@ -49,10 +52,26 @@ const SalesDashboard = () => {
   const [poNumber, setPoNumber] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   
-  // Distributor quote states - can be linked to either Customer PO (before Company PO) or Company PO
+  // Distributor quote states
   const [selectedCustomerPOForDist, setSelectedCustomerPOForDist] = useState("");
   const [distQuoteNumber, setDistQuoteNumber] = useState("");
   const [distQuoteFile, setDistQuoteFile] = useState<File | null>(null);
+
+  // Customer management
+  const [showAddCustomer, setShowAddCustomer] = useState(false);
+  const [newCustomerName, setNewCustomerName] = useState("");
+
+  const { data: customers } = useQuery({
+    queryKey: ["customers"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("customers")
+        .select("*")
+        .order("name");
+      if (error) throw error;
+      return data;
+    },
+  });
 
   const { data: quotes } = useQuery({
     queryKey: ["quotes"],
@@ -102,6 +121,19 @@ const SalesDashboard = () => {
     },
   });
 
+  // Workflow tracking data
+  const { data: workflows } = useQuery({
+    queryKey: ["workflows-sales"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("workflow_tracker")
+        .select("*, quotes(*)")
+        .order("updated_at", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+  });
+
   const filteredQuotes = quotes?.filter((quote) => {
     if (!searchQuery) return true;
     const query = searchQuery.toLowerCase();
@@ -111,14 +143,24 @@ const SalesDashboard = () => {
     );
   });
 
-  const filteredCustomerPOs = customerPOs?.filter((po) => {
-    if (!searchQuery) return true;
-    const query = searchQuery.toLowerCase();
-    return (
-      po.po_number?.toLowerCase().includes(query) ||
-      po.quotes?.customer_name?.toLowerCase().includes(query) ||
-      po.quotes?.quote_number?.toLowerCase().includes(query)
-    );
+  const addCustomerMutation = useMutation({
+    mutationFn: async () => {
+      if (!newCustomerName.trim() || !user) throw new Error("Customer name is required");
+      const { error } = await supabase.from("customers").insert({
+        name: newCustomerName.trim(),
+        created_by: user.id,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast({ title: "Customer added successfully" });
+      queryClient.invalidateQueries({ queryKey: ["customers"] });
+      setNewCustomerName("");
+      setShowAddCustomer(false);
+    },
+    onError: (error: any) => {
+      toast({ variant: "destructive", title: "Error", description: error.message });
+    },
   });
 
   const uploadQuoteMutation = useMutation({
@@ -146,18 +188,16 @@ const SalesDashboard = () => {
 
       if (insertError) throw insertError;
 
-      // Initialize workflow for this quote
       const quoteId = insertedQuotes.id;
       const { error: wfError } = await supabase
         .from("workflow_tracker")
         .insert({ quote_id: quoteId, current_stage: "quote_uploaded" });
       if (wfError) throw wfError;
-
-      if (insertError) throw insertError;
     },
     onSuccess: () => {
       toast({ title: "Quote uploaded successfully" });
       queryClient.invalidateQueries({ queryKey: ["quotes"] });
+      queryClient.invalidateQueries({ queryKey: ["workflows-sales"] });
       setQuoteNumber("");
       setCustomerName("");
       setQuoteFile(null);
@@ -192,25 +232,21 @@ const SalesDashboard = () => {
 
       if (insertError) throw insertError;
 
-      // Advance workflow to customer_po_uploaded
       const { error: wfUpdateError } = await supabase
         .from("workflow_tracker")
         .update({ customer_po_id: insertedCPO.id, current_stage: "customer_po_uploaded" })
         .eq("quote_id", insertedCPO.quote_id);
       if (wfUpdateError) throw wfUpdateError;
 
-      // Create in-app notifications for Orders team
       const quote = quotes?.find(q => q.id === selectedQuoteId);
       if (quote) {
         try {
-          // Get all users with orders role
           const { data: ordersUsers } = await supabase
             .from("user_roles")
             .select("user_id")
             .eq("department_role", "orders");
           
           if (ordersUsers && ordersUsers.length > 0) {
-            // Create in-app notifications via secure edge function
             const notifications = ordersUsers.map(u => ({
               user_id: u.user_id,
               title: "New Customer PO Ready",
@@ -222,7 +258,6 @@ const SalesDashboard = () => {
             await createNotifications(notifications);
           }
 
-          // Try to send emails (will fail if domain not verified, but that's okay)
           const { data: session } = await supabase.auth.getSession();
           await supabase.functions.invoke('send-workflow-notification', {
             body: {
@@ -234,7 +269,7 @@ const SalesDashboard = () => {
             headers: {
               Authorization: `Bearer ${session?.session?.access_token}`,
             },
-          }).catch(err => console.log('Email notification failed (expected if domain not verified):', err));
+          }).catch(err => console.log('Email notification failed:', err));
         } catch (notifyError) {
           console.error('Notification error:', notifyError);
         }
@@ -243,6 +278,7 @@ const SalesDashboard = () => {
     onSuccess: () => {
       toast({ title: "Customer PO uploaded successfully" });
       queryClient.invalidateQueries({ queryKey: ["quotes"] });
+      queryClient.invalidateQueries({ queryKey: ["workflows-sales"] });
       setSelectedQuoteId("");
       setPoNumber("");
       setPoFile(null);
@@ -265,7 +301,6 @@ const SalesDashboard = () => {
 
       if (uploadError) throw uploadError;
 
-      // Insert with customer_po_id (before Company PO exists)
       const { error: insertError } = await supabase.from("distributor_quotes").insert({
         customer_po_id: selectedCustomerPOForDist,
         quote_number: distQuoteNumber,
@@ -287,6 +322,11 @@ const SalesDashboard = () => {
       toast({ variant: "destructive", title: "Upload failed", description: error.message });
     },
   });
+
+  // Get selected quote for view button
+  const selectedQuote = quotes?.find(q => q.id === selectedQuoteId);
+  // Get selected customer PO for dist quote view button
+  const selectedCPOForDist = customerPOs?.find(po => po.id === selectedCustomerPOForDist);
 
   return (
     <div className="space-y-6">
@@ -312,13 +352,39 @@ const SalesDashboard = () => {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="customer-name">Customer Name</Label>
-              <Input
-                id="customer-name"
-                value={customerName}
-                onChange={(e) => setCustomerName(e.target.value)}
-                placeholder="ABC Corporation"
-              />
+              <div className="flex items-center justify-between">
+                <Label htmlFor="customer-name">Customer Name</Label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowAddCustomer(true)}
+                  className="h-7 text-xs"
+                >
+                  <Plus className="h-3 w-3 mr-1" />
+                  New Customer
+                </Button>
+              </div>
+              {customers && customers.length > 0 ? (
+                <select
+                  id="customer-name"
+                  className="w-full h-10 px-3 py-2 border border-input bg-background rounded-md"
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                >
+                  <option value="">Select a customer...</option>
+                  {customers.map((c) => (
+                    <option key={c.id} value={c.name}>{c.name}</option>
+                  ))}
+                </select>
+              ) : (
+                <Input
+                  id="customer-name"
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                  placeholder="ABC Corporation"
+                />
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="quote-file">Quote PDF</Label>
@@ -362,6 +428,17 @@ const SalesDashboard = () => {
                 ))}
               </select>
             </div>
+            {selectedQuote && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => viewFile(selectedQuote.file_path, toast)}
+              >
+                <Eye className="h-4 w-4 mr-1" />
+                View Selected Quote
+              </Button>
+            )}
             <div className="space-y-2">
               <Label htmlFor="po-number">PO Number</Label>
               <Input
@@ -414,6 +491,17 @@ const SalesDashboard = () => {
               ))}
             </select>
           </div>
+          {selectedCPOForDist && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => viewFile(selectedCPOForDist.file_path, toast)}
+            >
+              <Eye className="h-4 w-4 mr-1" />
+              View Selected Customer PO
+            </Button>
+          )}
           <div className="space-y-2">
             <Label htmlFor="dist-quote-number">Distributor Quote Number</Label>
             <Input
@@ -440,6 +528,35 @@ const SalesDashboard = () => {
             <Upload className="mr-2 h-4 w-4" />
             {uploadDistributorQuoteMutation.isPending ? "Uploading..." : "Upload Distributor Quote"}
           </Button>
+        </CardContent>
+      </Card>
+
+      {/* Workflow Tracking */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Order Tracking</CardTitle>
+          <CardDescription>Track the progress of your orders through the workflow</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {workflows?.map((wf) => (
+              <div key={wf.id} className="border rounded-lg p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="font-medium">{wf.quotes?.quote_number}</span>
+                    <span className="text-muted-foreground ml-2">— {wf.quotes?.customer_name}</span>
+                  </div>
+                  <Badge variant={wf.current_stage === "completed" || wf.current_stage === "invoice_generated" ? "default" : "outline"} className="text-xs">
+                    {wf.current_stage.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}
+                  </Badge>
+                </div>
+                <WorkflowVisual currentStage={wf.current_stage} hasProject={!!wf.project_id} />
+              </div>
+            ))}
+            {(!workflows || workflows.length === 0) && (
+              <div className="text-center text-muted-foreground py-8">No orders to track yet</div>
+            )}
+          </div>
         </CardContent>
       </Card>
 
@@ -489,59 +606,29 @@ const SalesDashboard = () => {
                   </div>
                   
                   <div className="flex flex-wrap gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => viewFile(quote.file_path, toast)}
-                    >
-                      <Eye className="h-4 w-4 mr-1" />
-                      View
+                    <Button variant="outline" size="sm" onClick={() => viewFile(quote.file_path, toast)}>
+                      <Eye className="h-4 w-4 mr-1" /> View
                     </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => downloadFile(quote.file_path, quote.file_name, toast)}
-                    >
-                      <Download className="h-4 w-4 mr-1" />
-                      Quote
+                    <Button variant="outline" size="sm" onClick={() => downloadFile(quote.file_path, quote.file_name, toast)}>
+                      <Download className="h-4 w-4 mr-1" /> Quote
                     </Button>
                     {linkedCustomerPO && (
                       <>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => viewFile(linkedCustomerPO.file_path, toast)}
-                        >
-                          <Eye className="h-4 w-4 mr-1" />
-                          View PO
+                        <Button variant="outline" size="sm" onClick={() => viewFile(linkedCustomerPO.file_path, toast)}>
+                          <Eye className="h-4 w-4 mr-1" /> View PO
                         </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => downloadFile(linkedCustomerPO.file_path, linkedCustomerPO.file_name, toast)}
-                        >
-                          <Download className="h-4 w-4 mr-1" />
-                          Customer PO
+                        <Button variant="outline" size="sm" onClick={() => downloadFile(linkedCustomerPO.file_path, linkedCustomerPO.file_name, toast)}>
+                          <Download className="h-4 w-4 mr-1" /> Customer PO
                         </Button>
                       </>
                     )}
                     {linkedWaybill?.file_path && (
                       <>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => viewFile(linkedWaybill.file_path, toast)}
-                        >
-                          <Eye className="h-4 w-4 mr-1" />
-                          View WB
+                        <Button variant="outline" size="sm" onClick={() => viewFile(linkedWaybill.file_path, toast)}>
+                          <Eye className="h-4 w-4 mr-1" /> View WB
                         </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => downloadFile(linkedWaybill.file_path, linkedWaybill.file_name, toast)}
-                        >
-                          <Download className="h-4 w-4 mr-1" />
-                          Waybill
+                        <Button variant="outline" size="sm" onClick={() => downloadFile(linkedWaybill.file_path, linkedWaybill.file_name, toast)}>
+                          <Download className="h-4 w-4 mr-1" /> Waybill
                         </Button>
                       </>
                     )}
@@ -557,6 +644,35 @@ const SalesDashboard = () => {
           </div>
         </CardContent>
       </Card>
+
+      {/* Add Customer Dialog */}
+      <Dialog open={showAddCustomer} onOpenChange={setShowAddCustomer}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5" />
+              Add New Customer
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Customer Name</Label>
+              <Input
+                value={newCustomerName}
+                onChange={(e) => setNewCustomerName(e.target.value)}
+                placeholder="Enter customer name"
+              />
+            </div>
+            <Button
+              onClick={() => addCustomerMutation.mutate()}
+              disabled={!newCustomerName.trim() || addCustomerMutation.isPending}
+              className="w-full"
+            >
+              {addCustomerMutation.isPending ? "Adding..." : "Add Customer"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
