@@ -69,6 +69,9 @@ const App = () => (
             <Route path="/sales-upload-quote" element={<SalesUploadQuote />} />
             <Route path="/sales-customer-po" element={<SalesCustomerPO />} />
             <Route path="/sales-distributor-quote" element={<SalesDistributorQuote />} />
+            <Route path="/sales-customers" element={<SalesCustomerManagement />} />
+            <Route path="/sales-order-tracking" element={<SalesOrderTracking />} />
+            <Route path="/orders-distributors" element={<OrdersDistributorManagement />} />
             <Route path="/finance-invoices" element={<FinanceInvoices />} />
             <Route path="/projects-management" element={<ProjectsManagement />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

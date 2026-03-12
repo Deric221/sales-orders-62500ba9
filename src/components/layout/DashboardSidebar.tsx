@@ -127,6 +127,7 @@ const DashboardSidebar = ({ userRole }: DashboardSidebarProps) => {
     { title: "Create Waybill", icon: Truck, path: "/waybill-management" },
     { title: "Order Lookup", icon: Search, path: "/order-lookup" },
     { title: "Delivery Management", icon: Package, path: "/delivery-management" },
+    { title: "Distributor Management", icon: User, path: "/orders-distributors" },
   ];
 
   const financeItems = [
