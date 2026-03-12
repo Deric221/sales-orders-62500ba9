@@ -12,6 +12,11 @@ import CueTile from "@/components/bc/CueTile";
 import ActionRibbon, { RibbonGroup } from "@/components/bc/ActionRibbon";
 import FactBox from "@/components/bc/FactBox";
 import DepartmentPerformanceChart from "@/components/charts/DepartmentPerformanceChart";
+import SalesDashboard from "@/components/dashboards/SalesDashboard";
+import OrdersDashboard from "@/components/dashboards/OrdersDashboard";
+import FinanceDashboard from "@/components/dashboards/FinanceDashboard";
+import ProjectsDashboard from "@/components/dashboards/ProjectsDashboard";
+import AdminDashboard from "@/components/dashboards/AdminDashboard";
 
 const Dashboard = () => {
   const { user, userRole, loading, signOut, noRoleAssigned } = useAuth();
