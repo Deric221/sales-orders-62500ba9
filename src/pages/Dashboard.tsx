@@ -291,6 +291,13 @@ const Dashboard = () => {
 
         {/* FactBox */}
         <FactBox sections={getFactBoxSections()} />
+
+        {/* Department-specific Dashboard */}
+        {userRole.department_role === "sales" && <SalesDashboard />}
+        {userRole.department_role === "orders" && <OrdersDashboard />}
+        {userRole.department_role === "finance" && <FinanceDashboard />}
+        {userRole.department_role === "projects" && <ProjectsDashboard />}
+        {userRole.department_role === "admin" && <AdminDashboard />}
       </div>
     </DashboardLayout>
   );
