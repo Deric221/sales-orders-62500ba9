@@ -330,10 +330,7 @@ const SalesDashboard = () => {
 
   return (
     <div className="space-y-6">
-      <WelcomeHeader
-        pageDescription="Manage quotes, customer POs, and distributor quotes. Track your sales pipeline."
-        features={["Upload Quotes", "Link Customer POs", "Track Orders"]}
-      />
+      <h2 className="text-xl font-semibold">Sales Operations</h2>
 
       <div className="grid md:grid-cols-2 gap-6">
         <Card>
