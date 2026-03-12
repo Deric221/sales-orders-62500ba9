@@ -117,6 +117,8 @@ const DashboardSidebar = ({ userRole }: DashboardSidebarProps) => {
     { title: "Customer PO", icon: FileCheck, path: "/sales-customer-po" },
     { title: "Distributor Quote", icon: FileText, path: "/sales-distributor-quote" },
     { title: "Quotes & Documents", icon: FileText, path: "/sales-quotes" },
+    { title: "Customer Management", icon: User, path: "/sales-customers" },
+    { title: "Order Tracking", icon: Package, path: "/sales-order-tracking" },
   ];
 
   const ordersItems = [
