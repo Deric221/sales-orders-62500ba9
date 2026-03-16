@@ -1,3 +1,5 @@
+import logoImg from "@/assets/logo.png";
+
 interface WaybillItem {
   qty: string;
   reference: string;
