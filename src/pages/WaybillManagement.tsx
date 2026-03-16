@@ -425,7 +425,7 @@ const WaybillManagement = () => {
               <Button
                 variant="outline"
                 onClick={() => setShowWaybillPreview(true)}
-                disabled={!selectedCompanyPO || !waybillNumber}
+                disabled={!selectedCustomerPO || !waybillNumber}
               >
                 <Eye className="h-4 w-4 mr-2" />
                 Preview Waybill
