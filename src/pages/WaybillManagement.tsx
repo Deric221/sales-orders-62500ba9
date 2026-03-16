@@ -112,19 +112,20 @@ const WaybillManagement = () => {
   };
 
   const parsePODocument = async () => {
-    if (!selectedCompanyPO) return;
+    if (!selectedCustomerPO) return;
     
     setIsParsingPO(true);
     try {
-      const selectedPO = companyPOs?.find(po => po.id === selectedCompanyPO);
-      if (!selectedPO?.file_path) {
-        toast({ variant: "destructive", title: "No file to parse" });
+      // Use first linked company PO for parsing
+      const linkedCompanyPO = companyPOs?.[0];
+      if (!linkedCompanyPO?.file_path) {
+        toast({ variant: "destructive", title: "No company PO file to parse" });
         return;
       }
 
       const { data: session } = await supabase.auth.getSession();
       const { data, error } = await supabase.functions.invoke('parse-company-po', {
-        body: { filePath: selectedPO.file_path },
+        body: { filePath: linkedCompanyPO.file_path },
         headers: { Authorization: `Bearer ${session?.session?.access_token}` },
       });
 
@@ -147,8 +148,15 @@ const WaybillManagement = () => {
   };
 
   const createWaybill = async () => {
-    if (!user || !selectedCompanyPO) {
+    if (!user || !selectedCustomerPO) {
       toast({ variant: "destructive", title: "Missing required data" });
+      return;
+    }
+
+    // Get the linked company PO
+    const linkedCompanyPO = companyPOs?.[0];
+    if (!linkedCompanyPO) {
+      toast({ variant: "destructive", title: "No company PO linked to this customer PO" });
       return;
     }
 
