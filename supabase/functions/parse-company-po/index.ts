@@ -1,4 +1,4 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+// createClient is imported dynamically inside the handler
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
