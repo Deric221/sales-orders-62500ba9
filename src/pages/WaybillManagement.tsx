@@ -313,22 +313,22 @@ const WaybillManagement = () => {
               Create New Waybill
             </CardTitle>
             <CardDescription>
-              Generate waybill for a company PO
+              Generate waybill from a Customer PO
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Select Company PO</Label>
+                <Label>Select Customer PO</Label>
                 <select
                   className="w-full h-10 px-3 py-2 border border-input bg-background rounded-md"
-                  value={selectedCompanyPO}
-                  onChange={(e) => setSelectedCompanyPO(e.target.value)}
+                  value={selectedCustomerPO}
+                  onChange={(e) => setSelectedCustomerPO(e.target.value)}
                 >
-                  <option value="">Select a company PO...</option>
-                  {availableCompanyPOs?.map((po: any) => (
+                  <option value="">Select a customer PO...</option>
+                  {availableCustomerPOs?.map((po: any) => (
                     <option key={po.id} value={po.id}>
-                      {po.po_number} - {po.customer_pos?.quotes?.customer_name} ({po.distributor_name})
+                      {po.po_number} - {po.quotes?.customer_name}
                     </option>
                   ))}
                 </select>
