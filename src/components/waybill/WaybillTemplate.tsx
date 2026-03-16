@@ -1,3 +1,5 @@
+import logoImg from "@/assets/logo.png";
+
 interface WaybillItem {
   qty: string;
   reference: string;
@@ -41,7 +43,10 @@ export const WaybillTemplate = ({
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '32px' }}>
           <div>
-            <h1 style={{ fontSize: '48px', fontWeight: 'bold', color: '#000', marginBottom: '16px' }}>apotica<span style={{ color: '#000' }}>A</span></h1>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+              <img src={logoImg} alt="Apotica Logo" style={{ height: '56px', width: 'auto' }} />
+              <h1 style={{ fontSize: '48px', fontWeight: 'bold', color: '#000' }}>Apotica</h1>
+            </div>
             <div style={{ fontSize: '14px', lineHeight: '1.5', fontWeight: '500' }}>
               <div>#6 Osekere Street, Airport West</div>
               <div>Accra-Ghana</div>
