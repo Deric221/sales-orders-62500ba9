@@ -1,6 +1,7 @@
 import { ReactNode } from "react";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import DashboardSidebar from "./DashboardSidebar";
+import NotificationBell from "./NotificationBell";
 import { useAuth } from "@/contexts/AuthContext";
 
 interface DashboardLayoutProps {
