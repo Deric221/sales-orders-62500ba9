@@ -76,10 +76,8 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Create Supabase client
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    // Use existing adminClient (service role) for storage download
+    const supabase = adminClient;
 
     console.log("Downloading file from:", filePath);
 
