@@ -370,7 +370,7 @@ const WaybillManagement = () => {
               </div>
             </div>
 
-            {selectedCompanyPO && (
+            {selectedCustomerPO && (
               <Button
                 variant="outline"
                 onClick={parsePODocument}
