@@ -291,7 +291,7 @@ const WaybillManagement = () => {
       queryClient.invalidateQueries({ queryKey: ["existing-waybills"] });
       
       // Reset form
-      setSelectedCompanyPO("");
+      setSelectedCustomerPO("");
       setWaybillNumber("");
       setWaybillItems([{ qty: "", reference: "", description: "" }]);
       setToName("");
