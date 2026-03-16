@@ -217,7 +217,7 @@ const WaybillManagement = () => {
         .map(item => item.reference);
 
       const { data: waybill, error } = await supabase.from("waybills").insert({
-        company_po_id: selectedCompanyPO,
+        company_po_id: linkedCompanyPO.id,
         waybill_number: waybillNumber,
         product_details: productDetails,
         serial_numbers: serialNumbers,
@@ -234,7 +234,7 @@ const WaybillManagement = () => {
         .filter(item => item.description)
         .map(item => ({
           waybill_id: waybill.id,
-          company_po_id: selectedCompanyPO,
+          company_po_id: linkedCompanyPO.id,
           quantity: parseInt(item.qty) || 1,
           reference: item.reference || null,
           serial_number: item.reference || null,
@@ -245,9 +245,9 @@ const WaybillManagement = () => {
         await supabase.from("waybill_items").insert(waybillItemsToInsert);
       }
 
-      // Update workflow
-      const relatedCompanyPO = companyPOs?.find(po => po.id === selectedCompanyPO);
-      const quoteId = relatedCompanyPO?.customer_pos?.quote_id;
+      // Update workflow - get quote_id from the selected customer PO
+      const selectedCPO = customerPOs?.find(cpo => cpo.id === selectedCustomerPO);
+      const quoteId = selectedCPO?.quote_id;
       if (quoteId) {
         const { data: workflow } = await supabase
           .from("workflow_tracker")
