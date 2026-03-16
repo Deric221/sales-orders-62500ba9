@@ -23,8 +23,9 @@ const DashboardLayout = ({ children, title, ribbon }: DashboardLayoutProps) => {
           <header className="h-12 border-b bg-card flex items-center px-4 gap-4">
             <SidebarTrigger />
             {title && <h1 className="text-sm font-semibold text-foreground">{title}</h1>}
-            <div className="ml-auto text-xs text-muted-foreground">
-              {user?.email}
+            <div className="ml-auto flex items-center gap-3">
+              <NotificationBell />
+              <span className="text-xs text-muted-foreground">{user?.email}</span>
             </div>
           </header>
           {ribbon}
