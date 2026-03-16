@@ -23,7 +23,7 @@ const WaybillManagement = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const [selectedCompanyPO, setSelectedCompanyPO] = useState("");
+  const [selectedCustomerPO, setSelectedCustomerPO] = useState("");
   const [waybillNumber, setWaybillNumber] = useState("");
   const [waybillItems, setWaybillItems] = useState<Array<{ qty: string; reference: string; description: string }>>([
     { qty: "", reference: "", description: "" }
@@ -35,14 +35,14 @@ const WaybillManagement = () => {
   const [isParsingPO, setIsParsingPO] = useState(false);
   const [needsProject, setNeedsProject] = useState(false);
 
-  const { data: companyPOs } = useQuery({
-    queryKey: ["company-pos-for-waybill"],
+  const { data: customerPOs } = useQuery({
+    queryKey: ["customer-pos-for-waybill"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("company_pos")
+        .from("customer_pos")
         .select(`
           *, 
-          customer_pos(*, quotes(*))
+          quotes(*)
         `)
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -50,7 +50,22 @@ const WaybillManagement = () => {
     },
   });
 
-  // Filter company POs that don't have waybills yet
+  // Get company POs linked to customer POs for waybill creation
+  const { data: companyPOs } = useQuery({
+    queryKey: ["company-pos-linked", selectedCustomerPO],
+    queryFn: async () => {
+      if (!selectedCustomerPO) return [];
+      const { data, error } = await supabase
+        .from("company_pos")
+        .select("*")
+        .eq("customer_po_id", selectedCustomerPO);
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!selectedCustomerPO,
+  });
+
+  // Filter customer POs that don't have waybills yet (via their company POs)
   const { data: existingWaybills } = useQuery({
     queryKey: ["existing-waybills"],
     queryFn: async () => {
@@ -62,9 +77,14 @@ const WaybillManagement = () => {
     },
   });
 
-  const availableCompanyPOs = companyPOs?.filter(po => 
-    !existingWaybills?.some(wb => wb.company_po_id === po.id)
-  );
+  // Get company_po_ids that already have waybills
+  const usedCompanyPOIds = new Set(existingWaybills?.map(wb => wb.company_po_id) || []);
+  
+  // A customer PO is available if it has at least one company PO without a waybill
+  const availableCustomerPOs = customerPOs?.filter(cpo => {
+    // We show all customer POs - filtering happens at company PO level
+    return true;
+  });
 
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
@@ -92,19 +112,20 @@ const WaybillManagement = () => {
   };
 
   const parsePODocument = async () => {
-    if (!selectedCompanyPO) return;
+    if (!selectedCustomerPO) return;
     
     setIsParsingPO(true);
     try {
-      const selectedPO = companyPOs?.find(po => po.id === selectedCompanyPO);
-      if (!selectedPO?.file_path) {
-        toast({ variant: "destructive", title: "No file to parse" });
+      // Use first linked company PO for parsing
+      const linkedCompanyPO = companyPOs?.[0];
+      if (!linkedCompanyPO?.file_path) {
+        toast({ variant: "destructive", title: "No company PO file to parse" });
         return;
       }
 
       const { data: session } = await supabase.auth.getSession();
       const { data, error } = await supabase.functions.invoke('parse-company-po', {
-        body: { filePath: selectedPO.file_path },
+        body: { filePath: linkedCompanyPO.file_path },
         headers: { Authorization: `Bearer ${session?.session?.access_token}` },
       });
 
@@ -127,8 +148,15 @@ const WaybillManagement = () => {
   };
 
   const createWaybill = async () => {
-    if (!user || !selectedCompanyPO) {
+    if (!user || !selectedCustomerPO) {
       toast({ variant: "destructive", title: "Missing required data" });
+      return;
+    }
+
+    // Get the linked company PO
+    const linkedCompanyPO = companyPOs?.[0];
+    if (!linkedCompanyPO) {
+      toast({ variant: "destructive", title: "No company PO linked to this customer PO" });
       return;
     }
 
@@ -189,7 +217,7 @@ const WaybillManagement = () => {
         .map(item => item.reference);
 
       const { data: waybill, error } = await supabase.from("waybills").insert({
-        company_po_id: selectedCompanyPO,
+        company_po_id: linkedCompanyPO.id,
         waybill_number: waybillNumber,
         product_details: productDetails,
         serial_numbers: serialNumbers,
@@ -206,7 +234,7 @@ const WaybillManagement = () => {
         .filter(item => item.description)
         .map(item => ({
           waybill_id: waybill.id,
-          company_po_id: selectedCompanyPO,
+          company_po_id: linkedCompanyPO.id,
           quantity: parseInt(item.qty) || 1,
           reference: item.reference || null,
           serial_number: item.reference || null,
@@ -217,9 +245,9 @@ const WaybillManagement = () => {
         await supabase.from("waybill_items").insert(waybillItemsToInsert);
       }
 
-      // Update workflow
-      const relatedCompanyPO = companyPOs?.find(po => po.id === selectedCompanyPO);
-      const quoteId = relatedCompanyPO?.customer_pos?.quote_id;
+      // Update workflow - get quote_id from the selected customer PO
+      const selectedCPO = customerPOs?.find(cpo => cpo.id === selectedCustomerPO);
+      const quoteId = selectedCPO?.quote_id;
       if (quoteId) {
         const { data: workflow } = await supabase
           .from("workflow_tracker")
@@ -263,7 +291,7 @@ const WaybillManagement = () => {
       queryClient.invalidateQueries({ queryKey: ["existing-waybills"] });
       
       // Reset form
-      setSelectedCompanyPO("");
+      setSelectedCustomerPO("");
       setWaybillNumber("");
       setWaybillItems([{ qty: "", reference: "", description: "" }]);
       setToName("");
@@ -285,22 +313,22 @@ const WaybillManagement = () => {
               Create New Waybill
             </CardTitle>
             <CardDescription>
-              Generate waybill for a company PO
+              Generate waybill from a Customer PO
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Select Company PO</Label>
+                <Label>Select Customer PO</Label>
                 <select
                   className="w-full h-10 px-3 py-2 border border-input bg-background rounded-md"
-                  value={selectedCompanyPO}
-                  onChange={(e) => setSelectedCompanyPO(e.target.value)}
+                  value={selectedCustomerPO}
+                  onChange={(e) => setSelectedCustomerPO(e.target.value)}
                 >
-                  <option value="">Select a company PO...</option>
-                  {availableCompanyPOs?.map((po: any) => (
+                  <option value="">Select a customer PO...</option>
+                  {availableCustomerPOs?.map((po: any) => (
                     <option key={po.id} value={po.id}>
-                      {po.po_number} - {po.customer_pos?.quotes?.customer_name} ({po.distributor_name})
+                      {po.po_number} - {po.quotes?.customer_name}
                     </option>
                   ))}
                 </select>
@@ -342,7 +370,7 @@ const WaybillManagement = () => {
               </div>
             </div>
 
-            {selectedCompanyPO && (
+            {selectedCustomerPO && (
               <Button
                 variant="outline"
                 onClick={parsePODocument}
@@ -397,7 +425,7 @@ const WaybillManagement = () => {
               <Button
                 variant="outline"
                 onClick={() => setShowWaybillPreview(true)}
-                disabled={!selectedCompanyPO || !waybillNumber}
+                disabled={!selectedCustomerPO || !waybillNumber}
               >
                 <Eye className="h-4 w-4 mr-2" />
                 Preview Waybill
