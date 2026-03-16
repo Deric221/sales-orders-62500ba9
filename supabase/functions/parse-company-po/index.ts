@@ -87,9 +87,9 @@ Deno.serve(async (req) => {
       .download(filePath);
 
     if (downloadError) {
-      console.error("Error downloading file:", downloadError);
+      console.error("Storage download error:", downloadError);
       return new Response(
-        JSON.stringify({ success: false, error: `Failed to download file: ${downloadError.message}` }),
+        JSON.stringify({ success: false, error: "Failed to download file. Please try again." }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }

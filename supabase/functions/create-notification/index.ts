@@ -56,8 +56,31 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+    const userId = claimsData.claims.sub as string;
+
+    // Authorization: only managers, admins, and finance can create notifications
+    const { data: callerRole } = await adminClient
+      .from("user_roles")
+      .select("department_role, employee_type")
+      .eq("user_id", userId)
+      .single();
+
+    const canNotify =
+      callerRole?.employee_type === "manager" ||
+      callerRole?.department_role === "admin" ||
+      callerRole?.department_role === "finance" ||
+      callerRole?.department_role === "orders" ||
+      callerRole?.department_role === "sales" ||
+      callerRole?.department_role === "projects";
+
+    if (!canNotify) {
+      return new Response(JSON.stringify({ error: "Forbidden: insufficient permissions" }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
     
-    const user = { id: claimsData.claims.sub as string };
+    const user = { id: userId };
 
     // Parse request body
     const body = await req.json();
