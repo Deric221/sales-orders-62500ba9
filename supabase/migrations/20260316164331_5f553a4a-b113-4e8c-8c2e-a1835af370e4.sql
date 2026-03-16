@@ -1,0 +1,1 @@
+ALTER POLICY "Anyone can read department hierarchy" ON public.department_hierarchy USING (auth.uid() IS NOT NULL);
