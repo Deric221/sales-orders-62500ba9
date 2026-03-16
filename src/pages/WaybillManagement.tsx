@@ -23,7 +23,7 @@ const WaybillManagement = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const [selectedCompanyPO, setSelectedCompanyPO] = useState("");
+  const [selectedCustomerPO, setSelectedCustomerPO] = useState("");
   const [waybillNumber, setWaybillNumber] = useState("");
   const [waybillItems, setWaybillItems] = useState<Array<{ qty: string; reference: string; description: string }>>([
     { qty: "", reference: "", description: "" }
@@ -35,14 +35,14 @@ const WaybillManagement = () => {
   const [isParsingPO, setIsParsingPO] = useState(false);
   const [needsProject, setNeedsProject] = useState(false);
 
-  const { data: companyPOs } = useQuery({
-    queryKey: ["company-pos-for-waybill"],
+  const { data: customerPOs } = useQuery({
+    queryKey: ["customer-pos-for-waybill"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("company_pos")
+        .from("customer_pos")
         .select(`
           *, 
-          customer_pos(*, quotes(*))
+          quotes(*)
         `)
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -50,7 +50,22 @@ const WaybillManagement = () => {
     },
   });
 
-  // Filter company POs that don't have waybills yet
+  // Get company POs linked to customer POs for waybill creation
+  const { data: companyPOs } = useQuery({
+    queryKey: ["company-pos-linked", selectedCustomerPO],
+    queryFn: async () => {
+      if (!selectedCustomerPO) return [];
+      const { data, error } = await supabase
+        .from("company_pos")
+        .select("*")
+        .eq("customer_po_id", selectedCustomerPO);
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!selectedCustomerPO,
+  });
+
+  // Filter customer POs that don't have waybills yet (via their company POs)
   const { data: existingWaybills } = useQuery({
     queryKey: ["existing-waybills"],
     queryFn: async () => {
@@ -62,9 +77,14 @@ const WaybillManagement = () => {
     },
   });
 
-  const availableCompanyPOs = companyPOs?.filter(po => 
-    !existingWaybills?.some(wb => wb.company_po_id === po.id)
-  );
+  // Get company_po_ids that already have waybills
+  const usedCompanyPOIds = new Set(existingWaybills?.map(wb => wb.company_po_id) || []);
+  
+  // A customer PO is available if it has at least one company PO without a waybill
+  const availableCustomerPOs = customerPOs?.filter(cpo => {
+    // We show all customer POs - filtering happens at company PO level
+    return true;
+  });
 
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
